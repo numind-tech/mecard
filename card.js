@@ -17,6 +17,7 @@ document.querySelectorAll('.now[data-until]').forEach((el) => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const card = document.querySelector('.card');
   const layers = [...card.querySelectorAll('.bg')];
+  if (!layers.length) return;
   const dots = [...document.querySelectorAll('.bg-dot')];
   const nameEl = document.querySelector('.bg-name');
   const names = layers.map((l) => l.dataset.bg);
@@ -67,7 +68,7 @@ document.querySelectorAll('.now[data-until]').forEach((el) => {
     // Modified arrows belong to the browser (Alt+← is Back), and the
     // card stays put while the QR code is up
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    if (e.target.closest('input, textarea') || document.querySelector('dialog[open]')) return;
+    if (e.target.closest('input, textarea, select, .language-switch, .language-picker') || document.querySelector('dialog[open]')) return;
     if (e.key === 'ArrowRight') show(current + 1, true);
     if (e.key === 'ArrowLeft') show(current - 1, true);
   });
@@ -76,6 +77,7 @@ document.querySelectorAll('.now[data-until]').forEach((el) => {
   // A second finger means a pinch, so the swipe is dropped.
   let x0 = null, y0 = 0, swiped = false;
   card.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.language-switch, .language-picker')) return;
     if (!e.isPrimary) { x0 = null; return; }
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     x0 = e.clientX; y0 = e.clientY; swiped = false;
@@ -128,24 +130,26 @@ document.querySelectorAll('.now[data-until]').forEach((el) => {
     }
   }
   fit();
+  addEventListener('mecard:languagechange', fit);
   document.fonts?.ready.then(fit);
   if (window.ResizeObserver) new ResizeObserver(fit).observe(card);
 })();
 
 // ── Save Contact ──
 // The vCard in the page leaves the photo out, since the page already
-// carries it once as the <img>. Add it back the first time it's saved.
+// carries it once as the <img>. Add it after every language change too,
+// without duplicating PHOTO when the same contact is saved repeatedly.
 (() => {
   const save = document.querySelector('.save-btn'), img = document.querySelector('img.photo');
   if (!save || !img) return;
+  let photoHref;
   save.addEventListener('click', () => {
-    const [head, data] = save.href.split(',');
+    if (save.href === photoHref) return;
+    const data = save.href.split(',')[1];
     const vcard = new TextDecoder().decode(Uint8Array.from(atob(data), (c) => c.charCodeAt(0)));
-    const bytes = new TextEncoder().encode(withPhoto(vcard, img.src));
-    let binary = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    save.href = head + ',' + btoa(binary);
-  }, { once: true });
+    photoHref = toVCardDataUri(withPhoto(vcard, img.src));
+    save.href = photoHref;
+  });
 })();
 
 // ── Full-screen QR ──

@@ -6,6 +6,8 @@
    ───────────────────────────────────────────────────────────── */
 
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+[hidden] { display: none !important; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 :root {
   --text-muted: rgba(var(--text-rgb), 0.82);
@@ -250,6 +252,16 @@ body {
 }
 
 /* ── Identity ──────────────────────── */
+.card-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
+.brand { display: flex; align-items: center; min-height: 44px; width: 132px; line-height: 0; }
+.brand svg { width: 100%; height: auto; }
+.language-switch { display: flex; gap: 2px; padding: 3px; border: 1px solid rgba(var(--text-rgb), 0.12); border-radius: 999px; }
+.language-switch button { display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0 8px; border: 0; border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 0.75rem; font-weight: 650; cursor: pointer; }
+.language-switch button[aria-pressed="true"] { background: var(--text); color: var(--page); }
+.language-picker { max-width: 50%; min-width: 0; }
+.language-picker select { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid rgba(var(--text-rgb), 0.15); border-radius: 999px; font: inherit; font-size: .85rem; background: var(--page); color: var(--text); cursor: pointer; }
+.language-switch button:focus-visible, .language-picker select:focus-visible, .brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
 .name {
   font-size: 2rem;
   font-weight: 650;
@@ -659,6 +671,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
+    animation-delay: 0s !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

@@ -11,7 +11,7 @@ import { buildVCard } from "../vcard.js";
 
 const dir = mkdtempSync(join(tmpdir(), "mecard-security-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
-const basic = { name: "Ada", url: "https://example.org/card", links: [] };
+const basic = { name: "Test User", url: "https://example.org/card", links: [] };
 
 function config(values) {
   const file = join(dir, "config.json");
@@ -34,10 +34,10 @@ test("all configured URL fields reject executable schemes and embedded controls"
 });
 
 test("web links and deliberate mailto/tel links remain usable", () => {
-  const links = ["https://example.org/a?x=1&y=2", "http://example.org", "mailto:ada@example.org", "tel:+33123456789"];
+  const links = ["https://example.org/a?x=1&y=2", "http://example.org", "mailto:contact@example.test", "tel:+33123456789"];
   const result = config({ links: links.map((url) => ({ label: "Link", url })) });
   assert.deepEqual(result.links.map((link) => link.url), links);
-  assert.throws(() => config({ website: "mailto:ada@example.org" }), /must use/);
+  assert.throws(() => config({ website: "mailto:contact@example.test" }), /must use/);
 });
 
 test("vCard rejects URL injection even when called without the config loader", () => {

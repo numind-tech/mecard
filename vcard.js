@@ -3,6 +3,7 @@
 // ─────────────────────────────────────────────────────────────
 
 import { validateUrl, LINK_PROTOCOLS } from "./urls.js";
+import { labelsFor } from "./locales.js";
 
 // Text values escape backslash, comma, semicolon and newlines
 export const escText = (s) =>
@@ -30,7 +31,7 @@ export function fold(line) {
 }
 
 // Family;Given;Middle;Prefix;Suffix. Without nameParts the last word is
-// taken as the family name, which is wrong for "van der Waals" or "Jr."
+// taken as the family name, which cannot represent compound names or suffixes.
 function nameField({ name, nameParts: p }) {
   if (p) return [p.family, p.given, p.middle, p.prefix, p.suffix];
   const words = name.split(/\s+/);
@@ -60,7 +61,7 @@ export function buildVCard(config) {
 
   // Grouped URLs carry a label; iOS shows it, other apps fall back to "URL"
   const labelled = config.links.map((l) => [l.label, l.url]);
-  if (config.url !== config.website) labelled.unshift(["Digital card", config.url]);
+  if (config.url !== config.website) labelled.unshift([config.labels?.digitalCard ?? labelsFor(config.lang).digitalCard, config.url]);
   labelled.forEach(([label, url], i) => {
     lines.push(`item${i + 1}.URL:${validateUrl(url, "vCard URL", LINK_PROTOCOLS)}`, `item${i + 1}.X-ABLabel:${escText(label)}`);
   });
@@ -79,4 +80,12 @@ export function withPhoto(vcard, src) {
   let folded = line.slice(0, 75);
   for (let i = 75; i < line.length; i += 74) folded += "\r\n " + line.slice(i, i + 74);
   return vcard.replace(/END:VCARD\r\n$/, `${folded}\r\nEND:VCARD\r\n`);
+}
+
+// Shared by the build and browser, including non-Latin contact text.
+export function toVCardDataUri(vcard) {
+  const bytes = new TextEncoder().encode(vcard);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return "data:text/vcard;charset=utf-8;base64," + btoa(binary);
 }

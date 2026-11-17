@@ -14,6 +14,7 @@ import { BACKGROUNDS, mix } from "./backgrounds.js";
 import { ICONS } from "./icons.js";
 import { cleanSvg } from "./svg.js";
 import { validateUrl, WEB_PROTOCOLS, LINK_PROTOCOLS } from "./urls.js";
+import { labelsFor, localize, isLanguage } from "./locales.js";
 
 export const THEME = {
   dark: "#1e1e22",
@@ -26,6 +27,7 @@ export const THEME = {
 };
 
 export const OPTIONS = {
+  paper: false,
   glint: false,
   animateWaves: true,
   qr: true,
@@ -33,7 +35,7 @@ export const OPTIONS = {
   share: true,
   pwa: true,
   qrLabel: "Scan to connect",
-  saveLabel: "Save Contact",
+  saveLabel: "Save contact",
   shareLabel: "Share",
 };
 
@@ -43,14 +45,14 @@ export const BG_NAMES = Object.keys(BACKGROUNDS);
 const RENAMED = { waves: "animateWaves" };
 
 const TEXT_KEYS = ["name", "title", "tagline", "organization", "department", "email", "phone", "website", "photo", "url", "lang"];
-const KEYS = [...TEXT_KEYS, "links", "theme", "backgrounds", "options", "now", "nameParts"];
+const KEYS = [...TEXT_KEYS, "links", "theme", "backgrounds", "options", "now", "nameParts", "logo", "translations", "labels", "dir"];
 const LINK_KEYS = ["label", "url", "icon"];
 const NOW_KEYS = ["text", "until", "url"];
 const NAME_KEYS = ["given", "middle", "family", "prefix", "suffix"];
 
-export function loadConfig(file, warn = () => {}) {
+export function loadConfig(file, warn = () => {}, lang) {
   if (!existsSync(file)) {
-    throw new Error(`${file} not found — copy config.example.yaml to start.`);
+    throw new Error(`${file} not found — create it with your name and card URL (see README.md).`);
   }
   let raw;
   try {
@@ -63,8 +65,10 @@ export function loadConfig(file, warn = () => {}) {
   }
   const base = dirname(resolve(file));
   checkKeys(raw, KEYS, "", warn);
+  const localized = localize(raw, lang, warn);
+  raw = localized.raw;
 
-  const config = { baseDir: base };
+  const config = { baseDir: base, defaultLang: localized.defaultLang, languages: localized.languages };
   for (const key of TEXT_KEYS) config[key] = text(raw[key], key, warn);
   for (const key of ["name", "url"]) {
     if (!config[key]) throw new Error(`${file} is missing required key: ${key}`);
@@ -78,17 +82,22 @@ export function loadConfig(file, warn = () => {}) {
   }
 
   config.lang ??= "en";
-  if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(config.lang)) {
+  if (!isLanguage(config.lang)) {
     warn(`lang should be a language tag like en or pt-BR, not ${config.lang} — using en`);
     config.lang = "en";
   }
 
   config.theme = loadTheme(mapping(raw.theme, "theme", warn), warn);
-  config.options = loadOptions(mapping(raw.options, "options", warn), warn);
+  config.labels = loadLabels(raw.labels, config.lang, warn);
+  config.options = loadOptions(mapping(raw.options, "options", warn), warn, config.labels);
+  for (const key of ["qrLabel", "saveLabel", "shareLabel"]) config.labels[key] = config.options[key];
+  config.dir = raw.dir ?? "ltr";
+  if (!["ltr", "rtl"].includes(config.dir)) throw new Error("dir must be ltr or rtl");
   config.backgrounds = loadBackgrounds(raw.backgrounds, warn);
   config.links = loadLinks(raw.links, base, warn);
   config.now = loadNow(raw.now, warn);
   config.nameParts = loadNameParts(raw.nameParts, warn);
+  config.logo = raw.logo ? loadIcon(raw.logo, base, (msg) => warn(`logo: ${msg}`)).icon : null;
   return config;
 }
 
@@ -114,7 +123,22 @@ function loadTheme(raw, warn) {
   return theme;
 }
 
-function loadOptions(raw, warn) {
+function loadLabels(raw, lang, warn) {
+  const values = mapping(raw, "labels", warn);
+  const labels = { ...labelsFor(lang) };
+  checkKeys(values, Object.keys(labels), "labels.", warn);
+  for (const key of Object.keys(labels)) {
+    if (values[key] == null) continue;
+    if (typeof values[key] !== "string") {
+      warn(`labels.${key} should be text — using the default`);
+      continue;
+    }
+    labels[key] = values[key];
+  }
+  return labels;
+}
+
+function loadOptions(raw, warn, labels) {
   raw = { ...raw };
   for (const [old, now] of Object.entries(RENAMED)) {
     if (!(old in raw)) continue;
@@ -123,7 +147,7 @@ function loadOptions(raw, warn) {
     delete raw[old];
   }
   checkKeys(raw, Object.keys(OPTIONS), "options.", warn);
-  const options = { ...OPTIONS };
+  const options = { ...OPTIONS, qrLabel: labels.qrLabel, saveLabel: labels.saveLabel, shareLabel: labels.shareLabel };
   for (const [key, fallback] of Object.entries(OPTIONS)) {
     const value = raw[key];
     if (value == null) continue;

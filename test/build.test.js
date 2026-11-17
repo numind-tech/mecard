@@ -5,7 +5,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs";
+import { mkdtempSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from "fs";
 import { createServer } from "http";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
@@ -15,7 +15,6 @@ import { loadConfig } from "../config.js";
 import { buildVCard, fold, withPhoto } from "../vcard.js";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const PHOTO = join(ROOT, "photo.jpg");
 const run = promisify(execFile);
 
 const temps = [];
@@ -25,6 +24,30 @@ function tempDir() {
   return dir;
 }
 after(() => temps.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+
+// Generated 2×2 solid-colour JPEG used only by tests.
+const PHOTO = join(tempDir(), "photo.jpg");
+writeFileSync(PHOTO, Buffer.from(
+  "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/" +
+  "2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAACAAIDASIAAhEBAxEB/" +
+  "8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAABf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AIABgA//2Q==",
+  "base64"
+));
+const PROFILE = JSON.stringify({
+  name: "Test Person",
+  title: "Test Role",
+  tagline: "Test Note",
+  organization: "Test Organization",
+  department: "Test Department",
+  email: "contact@example.test",
+  website: "https://example.test/",
+  url: "https://example.test/card",
+  photo: PHOTO,
+  links: [
+    { label: "Profile", url: "https://profiles.example.test/test", icon: "globe" },
+    { label: "Document", url: "https://example.test/document.pdf", icon: "file" },
+  ],
+});
 
 // Build `yaml` (or a file in the repo) and return what came out
 async function build(yaml, ...flags) {
@@ -51,12 +74,75 @@ const parseVCard = (text) => new ICAL.Component(ICAL.parse(text));
 const savedVCardOf = (html) => withPhoto(vcardOf(html), html.match(/<img class="photo" src="([^"]+)"/)[1]);
 const personOf = (html) => JSON.parse(html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)[1]);
 
-const BASIC = `name: Ada Lovelace
+const BASIC = `name: Test Person
 url: https://example.org/card
 `;
 
-test("the example config builds cleanly under --strict", async () => {
-  const { code, stderr, out } = await build("config.example.yaml", "--strict");
+test("all configured languages share one HTML page, one portrait and localized contacts", async () => {
+  const injection = '</script><img src=x onerror="alert(1)">';
+  const { code, stderr, html, out } = await build(JSON.stringify({
+    name: "Test Person", url: "https://example.test/card", lang: "fr",
+    photo: PHOTO,
+    options: { pwa: false, paper: true },
+    logo: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#575086"/></svg>',
+    translations: {
+      fr: { title: "Directrice technique", tagline: "Des documents aux données" },
+      en: { title: "CTO", tagline: injection },
+      de: { title: "Technische Leitung", labels: { saveLabel: "Kontakt speichern", digitalCard: "Visitenkarte" } },
+      ja: { title: "技術責任者", labels: { saveLabel: "連絡先を保存" } },
+      ar: { title: "مدير تقني", dir: "rtl", labels: { saveLabel: "حفظ جهة الاتصال" } },
+    },
+  }), "--strict");
+  assert.equal(code, 0, stderr);
+  assert.deepEqual(readdirSync(out), ["index.html"]);
+  assert.match(html, /<html lang="fr" dir="ltr">/);
+  assert.match(html, /<select data-language-select>/);
+  assert.doesNotMatch(html, /href="[^\"]*\/en\/index\.html"/);
+  assert.equal((html.match(/<img class="photo"/g) || []).length, 1);
+  assert.equal((html.match(/<main /g) || []).length, 1);
+  const raw = html.match(/<script type="application\/json" id="card-locales">([\s\S]*?)<\/script>/)[1];
+  const translations = JSON.parse(raw);
+  assert.deepEqual(Object.keys(translations), ["fr", "en", "de", "ja", "ar"]);
+  assert.equal(translations.en.text.tagline, injection);
+  assert.ok(!raw.includes("<"), "translated text cannot close the data script");
+  assert.ok(!html.includes(injection));
+  assert.equal(translations.ar.dir, "rtl");
+  assert.equal(translations.ja.text.saveLabel, "連絡先を保存");
+  assert.equal(parseVCard(vcardOf(html)).getFirstPropertyValue("title"), "Directrice technique");
+  for (const [lang, text] of Object.entries(translations)) {
+    assert.doesNotMatch(text.vcard, /PHOTO;/, `${lang} duplicates the portrait`);
+    assert.equal(parseVCard(text.vcard).getFirstPropertyValue("title"), text.text.title);
+  }
+  assert.equal(parseVCard(translations.de.vcard).getFirstPropertyValue("x-ablabel"), "Visitenkarte");
+});
+
+test("--lang sets the initial language without discarding the other translations", async () => {
+  const { code, stderr, html, out } = await build(JSON.stringify({
+    name: "Test Person", url: "https://example.test/card",
+    options: { pwa: false },
+    translations: { fr: { title: "Direction" }, en: { title: "Director" } },
+  }), "--strict", "--lang", "en");
+  assert.equal(code, 0, stderr);
+  assert.deepEqual(readdirSync(out), ["index.html"]);
+  assert.match(html, /<html lang="en"/);
+  assert.match(html, /data-language="fr"[^>]*aria-pressed="false"/);
+  assert.match(html, /data-language="en"[^>]*aria-pressed="true"/);
+  assert.equal(parseVCard(vcardOf(html)).getFirstPropertyValue("title"), "Director");
+});
+
+test("strict builds validate inactive translations before writing the page", async () => {
+  const { code, html, stderr } = await build(JSON.stringify({
+    name: "Test Person", url: "https://example.test/card", lang: "fr",
+    options: { pwa: false },
+    translations: { en: { labels: { saveLabel: { invalid: "text" } } } },
+  }), "--strict");
+  assert.equal(code, 1);
+  assert.equal(html, null);
+  assert.match(stderr, /en: labels.saveLabel should be text/);
+});
+
+test("a complete synthetic profile builds cleanly under --strict", async () => {
+  const { code, stderr, out } = await build(PROFILE, "--strict");
   assert.equal(code, 0, stderr);
   for (const file of ["index.html", "icon.jpg", "icon-maskable-192.png", "icon-maskable-512.png", "manifest.webmanifest", "sw.js"]) {
     assert.ok(existsSync(join(out, file)), `${file} missing`);
@@ -66,7 +152,7 @@ test("the example config builds cleanly under --strict", async () => {
 });
 
 test("Android gets maskable PNG icons at their stated sizes", async () => {
-  const { out } = await build("config.example.yaml");
+  const { out } = await build(PROFILE);
   const { icons } = JSON.parse(readFileSync(join(out, "manifest.webmanifest"), "utf-8"));
   const maskable = icons.filter((icon) => icon.purpose === "maskable");
   assert.deepEqual(maskable.map((icon) => icon.sizes), ["192x192", "512x512"]);
@@ -78,8 +164,8 @@ test("Android gets maskable PNG icons at their stated sizes", async () => {
   assert.ok(icons.some((icon) => icon.purpose === "any"), "browsers still want a plain icon too");
 });
 
-test("the example's vCard parses, with every field intact", async () => {
-  const { html } = await build("config.example.yaml");
+test("a complete synthetic vCard parses, with every field intact", async () => {
+  const { html } = await build(PROFILE);
   assert.doesNotMatch(vcardOf(html), /PHOTO/, "the page shouldn't carry the photo twice");
   assert.match(html, /function withPhoto\(/, "the page needs withPhoto to add it back");
 
@@ -89,12 +175,12 @@ test("the example's vCard parses, with every field intact", async () => {
   const card = parseVCard(text);
   const value = (name) => card.getFirstPropertyValue(name);
   assert.equal(value("version"), "3.0");
-  assert.equal(value("fn"), "Ada Lovelace");
-  assert.deepEqual(value("n"), ["Lovelace", "Ada", "", "", ""]);
-  assert.deepEqual(value("org"), ["Example University", "Department of Mathematics"]);
-  assert.equal(value("title"), "Research Fellow");
-  assert.equal(value("note"), "Analytical Engines");
-  assert.equal(value("email"), "ada@example.edu");
+  assert.equal(value("fn"), "Test Person");
+  assert.deepEqual(value("n"), ["Person", "Test", "", "", ""]);
+  assert.deepEqual(value("org"), ["Test Organization", "Test Department"]);
+  assert.equal(value("title"), "Test Role");
+  assert.equal(value("note"), "Test Note");
+  assert.equal(value("email"), "contact@example.test");
   assert.ok(value("photo"), "photo missing");
 
   // Links ride along as grouped URLs with iOS labels
@@ -105,19 +191,19 @@ test("the example's vCard parses, with every field intact", async () => {
     .getAllProperties("url")
     .filter((p) => p.getParameter("group"))
     .map((p) => [labels[p.getParameter("group")], p.getFirstValue()]);
-  assert.deepEqual(labelled[0], ["Digital card", "https://username.github.io/mecard"]);
-  assert.ok(labelled.some(([label, url]) => label === "Google Scholar" && url.includes("scholar.google")));
+  assert.deepEqual(labelled[0], ["Digital card", "https://example.test/card"]);
+  assert.ok(labelled.some(([label, url]) => label === "Profile" && url.includes("profiles.example.test")));
 });
 
 test("vCard text is escaped and folded on character boundaries", () => {
   const config = {
-    name: "Johannes Diderik van der Waals",
-    nameParts: { given: "Johannes Diderik", middle: "", family: "van der Waals", prefix: "Prof.", suffix: "Jr." },
+    name: "First Middle van der Test",
+    nameParts: { given: "First Middle", middle: "", family: "van der Test", prefix: "Prof.", suffix: "Jr." },
     title: "Professor, Physics; Thermodynamics",
     tagline: "Line one\nLine two",
-    organization: "Universiteit van Amsterdam, Faculteit der Natuurwetenschappen",
-    department: "Natuurkunde",
-    email: "jdw@example.nl",
+    organization: "Test Research Institute, Department of Physics",
+    department: "Test Department",
+    email: "contact@example.test",
     website: null,
     url: "https://example.nl/card",
     links: [{ label: "Ångström, Ørsted & Ærø — ½ × ∞ lines of text that run long enough to fold", url: "https://example.nl" }],
@@ -126,7 +212,7 @@ test("vCard text is escaped and folded on character boundaries", () => {
   for (const line of text.split("\r\n")) assert.ok(Buffer.byteLength(line) <= 75, `over 75 octets: ${line}`);
 
   const card = parseVCard(text);
-  assert.deepEqual(card.getFirstPropertyValue("n"), ["van der Waals", "Johannes Diderik", "", "Prof.", "Jr."]);
+  assert.deepEqual(card.getFirstPropertyValue("n"), ["van der Test", "First Middle", "", "Prof.", "Jr."]);
   // vCard 3.0 requires "\;" in text, but ical.js follows vCard 4 and leaves it escaped
   assert.equal(card.getFirstPropertyValue("title").replaceAll("\\;", ";"), config.title);
   assert.equal(card.getFirstPropertyValue("note"), config.tagline);
@@ -152,9 +238,9 @@ test("config mistakes are warned about, with suggestions", () => {
   const file = join(dir, "config.yaml");
   writeFileSync(
     file,
-    `name: Ada
+    `name: Test Person
 url: example.org/card
-emial: ada@example.org
+emial: contact@example.test
 lang: not a language
 theme:
   dark: #1e1e22
@@ -189,14 +275,14 @@ backgrounds: [spectrum, wave]
 });
 
 test("--strict refuses to build with warnings", async () => {
-  const { code, stderr, html } = await build(`${BASIC}emial: ada@example.org\n`, "--strict");
+  const { code, stderr, html } = await build(`${BASIC}emial: contact@example.test\n`, "--strict");
   assert.equal(code, 1);
   assert.match(stderr, /did you mean email/);
   assert.equal(html, null);
 });
 
 test("a missing required key stops the build", async () => {
-  const { code, stderr } = await build("name: Ada\n");
+  const { code, stderr } = await build("name: Test Person\n");
   assert.equal(code, 1);
   assert.match(stderr, /missing required key: url/);
 });
@@ -214,14 +300,14 @@ test("the now line shows until its date, then drops out", async () => {
 });
 
 test("schema.org Person lists profiles, not files", async () => {
-  const { html } = await build("config.example.yaml");
+  const { html } = await build(PROFILE);
   const person = personOf(html);
   assert.equal(person["@type"], "Person");
-  assert.equal(person.name, "Ada Lovelace");
-  assert.equal(person.jobTitle, "Research Fellow");
-  assert.equal(person.worksFor.name, "Example University");
-  assert.equal(person.image, "https://username.github.io/mecard/icon.jpg");
-  assert.ok(person.sameAs.some((u) => u.includes("orcid.org")));
+  assert.equal(person.name, "Test Person");
+  assert.equal(person.jobTitle, "Test Role");
+  assert.equal(person.worksFor.name, "Test Organization");
+  assert.equal(person.image, "https://example.test/card/icon.jpg");
+  assert.ok(person.sameAs.some((u) => u.includes("profiles.example.test")));
   assert.ok(!person.sameAs.some((u) => u.endsWith(".pdf")), "the CV is a file, not a profile");
 });
 
@@ -230,7 +316,7 @@ test("lang, custom icons and </script> in values come through safely", async () 
   writeFileSync(join(dir, "star.svg"), `<?xml version="1.0"?>\n<!-- a star -->\n<svg viewBox="0 0 24 24"><path id="star" d="M12 2l3 7h7l-6 5 2 7-6-4-6 4 2-7-6-5h7z"/></svg>`);
   const yaml = `${BASIC}title: "</script><b>"\nlang: de\nlinks:\n  - label: Star\n    url: https://example.org\n    icon: ${join(dir, "star.svg")}\n`;
   const { html } = await build(yaml);
-  assert.match(html, /<html lang="de">/);
+  assert.match(html, /<html lang="de"/);
   assert.match(html, /<svg viewBox="0 0 24 24"><path id="star"/);
   assert.doesNotMatch(html, /<\?xml|a star/);
   // Only the page's own closing tags appear raw
@@ -355,8 +441,8 @@ test("turning PWA off clears the old PWA files", async () => {
 
 test("without a photo, the initials become the icon", async () => {
   const { html, out } = await build(BASIC);
-  assert.match(html, /<div class="photo photo-initials">AL<\/div>/);
-  assert.match(readFileSync(join(out, "icon.svg"), "utf-8"), />AL<\/text>/);
+  assert.match(html, /<div class="photo photo-initials">TP<\/div>/);
+  assert.match(readFileSync(join(out, "icon.svg"), "utf-8"), />TP<\/text>/);
   assert.match(html, /<link rel="icon" href="icon.svg" type="image\/svg\+xml">/);
   assert.match(readFileSync(join(out, "manifest.webmanifest"), "utf-8"), /"src": "icon.svg"/);
   assert.ok(existsSync(join(out, "icon-maskable-512.png")));
@@ -370,7 +456,7 @@ test("a renamed option still works, with a warning", async () => {
 });
 
 test("the stylesheet uses only variables the theme defines", async () => {
-  const { html } = await build("config.example.yaml");
+  const { html } = await build(PROFILE);
   const css = html.match(/<style>([\s\S]*?)<\/style>/)[1];
   const used = new Set([...css.matchAll(/var\(--([\w-]+)\)/g)].map((m) => m[1]));
   const defined = new Set([...css.matchAll(/--([\w-]+):/g)].map((m) => m[1]));

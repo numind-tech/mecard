@@ -11,7 +11,7 @@ import { Resvg } from "@resvg/resvg-js";
 import { BACKGROUNDS, restingWaves, rgb } from "./backgrounds.js";
 import { loadConfig } from "./config.js";
 import { ICONS } from "./icons.js";
-import { buildVCard, withPhoto } from "./vcard.js";
+import { buildVCard, withPhoto, toVCardDataUri } from "./vcard.js";
 import { downloadPhoto } from "./photo.js";
 
 // ── Arguments ────────────────────────────────────────────────
@@ -22,10 +22,11 @@ try {
       config: { type: "string", short: "c", default: "config.yaml" },
       out: { type: "string", short: "o", default: "dist" },
       strict: { type: "boolean", default: false },
+      lang: { type: "string" },
     },
   }).values;
 } catch (err) {
-  console.error(`${err.message}\nUsage: node build.js [--config config.yaml] [--out dist] [--strict]`);
+  console.error(`${err.message}\nUsage: node build.js [--config config.yaml] [--out dist] [--strict] [--lang en]`);
   process.exit(1);
 }
 const OUT = args.out;
@@ -39,14 +40,16 @@ const warn = (msg) => {
   console.warn(`! ${msg}`);
 };
 
-let config;
+let config, variants;
 try {
-  config = loadConfig(args.config, warn);
+  config = loadConfig(args.config, warn, args.lang);
+  variants = config.languages.map((lang) => lang === config.lang ? config : loadConfig(args.config, (message) => warn(`${lang}: ${message}`), lang));
 } catch (err) {
   console.error(err.message);
   process.exit(1);
 }
 const { theme, options: opts, backgrounds } = config;
+const labels = config.labels;
 
 // The stylesheet is static; the theme reaches it through these variables
 const themeCss = `:root {
@@ -170,16 +173,32 @@ const cardBase = (() => {
 const qrSvg = await QRCode.toString(config.url, {
   type: "svg",
   margin: 0,
-  color: { dark: "#ffffffdd", light: "#00000000" },
+  color: { dark: opts.paper ? theme.dark : "#ffffffdd", light: "#00000000" },
   errorCorrectionLevel: "M",
 });
 
 // ── vCard ────────────────────────────────────────────────────
 // Without the photo: card.js adds it from the <img> when it's saved
 const vcard = buildVCard(config);
-const vcardDataUri = `data:text/vcard;charset=utf-8;base64,${Buffer.from(vcard).toString("base64")}`;
+const vcardDataUri = toVCardDataUri(vcard);
 // Characters that some file systems refuse become underscores
 const vcardFilename = config.name.replace(/[\s\\/:*?"<>|]+/g, "_") + ".vcf";
+
+// Only text varies between languages. Images, SVGs, styles and markup appear
+// once. Contacts are pre-escaped at build time and never contain a second photo.
+const translations = Object.fromEntries(variants.map((variant) => [variant.lang, {
+  dir: variant.dir,
+  text: {
+    ...variant.labels,
+    title: variant.title || "",
+    tagline: variant.tagline || "",
+    org: [variant.department, variant.organization].filter(Boolean).join(" · "),
+    qrFor: `${variant.labels.qrFor} ${variant.name}`,
+  },
+  department: variant.department,
+  summary: [variant.title, variant.organization].filter(Boolean).join(" — "),
+  vcard: opts.saveContact ? buildVCard(variant) : undefined,
+}]));
 
 // ── Structured data ──────────────────────────────────────────
 // A schema.org Person, so search engines can connect the card to the
@@ -223,6 +242,12 @@ function escHtml(s) {
 // JSON inside <script> must not contain "</script>", so escape every "<"
 const scriptJson = (value, indent) => JSON.stringify(value, null, indent).replace(/</g, "\\u003c");
 
+function translatedText(tag, className, key) {
+  if (!Object.values(translations).some((variant) => variant.text[key])) return "";
+  const value = translations[config.lang].text[key];
+  return `<${tag} class="${className}" data-i18n="${key}" data-hide-empty${value ? "" : " hidden"}>${escHtml(value)}</${tag}>`;
+}
+
 function buildPhotoHtml() {
   const inner = photo
     ? `<img class="photo" src="${photo.src}" alt="${escHtml(config.name)}" />`
@@ -233,16 +258,31 @@ function buildPhotoHtml() {
       </div>`;
 }
 
+function buildHeader() {
+  if (!config.logo && config.languages.length < 2) return "";
+  const logo = config.logo
+    ? `<a class="brand" href="${escHtml(config.website || config.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escHtml(config.organization || config.name)}">${config.logo}</a>`
+    : "<span></span>";
+  const languageName = (lang) => new Intl.DisplayNames([lang], { type: "language" }).of(lang);
+  let languages = "";
+  if (config.languages.length === 2) {
+    languages = `<nav class="language-switch" aria-label="${escHtml(labels.language)}" data-i18n-aria="language" dir="ltr" hidden>${config.languages.map((lang) =>
+      `<button type="button" data-language="${lang}" lang="${lang}" aria-label="${escHtml(languageName(lang))}" aria-pressed="${lang === config.lang}">${lang.toUpperCase()}</button>`
+    ).join("")}</nav>`;
+  } else if (config.languages.length > 2) {
+    languages = `<label class="language-picker" hidden><span class="sr-only" data-i18n="language">${escHtml(labels.language)}</span><select data-language-select>${config.languages.map((lang) =>
+      `<option value="${lang}" lang="${lang}"${lang === config.lang ? " selected" : ""}>${escHtml(languageName(lang))}</option>`
+    ).join("")}</select></label>`;
+  }
+  return `      <header class="card-header">${logo}${languages}</header>`;
+}
+
 function buildSubtitle() {
-  const lines = [];
-  if (config.title)
-    lines.push(`<span class="sub-title">${escHtml(config.title)}</span>`);
-  if (config.tagline)
-    lines.push(`<span class="sub-tagline">${escHtml(config.tagline)}</span>`);
-  const orgParts = [config.department, config.organization].filter(Boolean);
-  if (orgParts.length)
-    lines.push(`<span class="sub-org">${escHtml(orgParts.join(" · "))}</span>`);
-  return lines.join("\n          ");
+  return [
+    translatedText("span", "sub-title", "title"),
+    !opts.paper && translatedText("span", "sub-tagline", "tagline"),
+    translatedText("span", "sub-org", "org"),
+  ].filter(Boolean).join("\n          ");
 }
 
 // Left out once its date has passed. The page checks again when it
@@ -270,6 +310,7 @@ function buildContactInfo() {
       href: `mailto:${config.email}`,
       icon: ICONS.mail,
       text: config.email,
+      label: "email",
     });
   if (config.phone)
     entries.push({
@@ -277,6 +318,7 @@ function buildContactInfo() {
       href: `tel:${config.phone.replace(/[^\d+]/g, "")}`,
       icon: ICONS.phone,
       text: config.phone,
+      label: "phone",
     });
   if (config.website)
     entries.push({
@@ -284,6 +326,7 @@ function buildContactInfo() {
       icon: ICONS.globe,
       text: config.website.replace(/^https?:\/\//, "").replace(/\/$/, ""),
       external: true,
+      label: "website",
     });
 
   if (!entries.length) return "";
@@ -293,7 +336,8 @@ function buildContactInfo() {
     const rel = e.external
       ? ' target="_blank" rel="noopener noreferrer"'
       : "";
-    return `        <a href="${escHtml(e.href)}"${rel} class="contact-row" style="animation-delay:${delay}s">${e.icon}<span>${escHtml(e.text)}</span></a>`;
+    const text = opts.paper ? `<span class="contact-text"><span class="contact-label" data-i18n="${e.label}">${escHtml(labels[e.label])}</span><bdi>${escHtml(e.text)}</bdi></span>` : `<bdi>${escHtml(e.text)}</bdi>`;
+    return `        <a href="${escHtml(e.href)}"${rel} class="contact-row" style="animation-delay:${delay}s">${e.icon}${text}</a>`;
   });
 
   return `      <div class="contact-info">\n${rows.join("\n")}\n      </div>`;
@@ -305,7 +349,7 @@ function buildLinksHtml() {
     const delay = (0.55 + i * 0.07).toFixed(2);
     return `        <a href="${escHtml(link.url)}" target="_blank" rel="noopener noreferrer"
            class="link-btn" title="${escHtml(link.label)}" aria-label="${escHtml(link.label)}"
-           style="animation-delay:${delay}s">${link.icon}</a>`;
+           style="animation-delay:${delay}s">${link.icon}${opts.paper ? `<span>${escHtml(link.label)}</span>` : ""}</a>`;
   });
   return `      <div class="links">\n${buttons.join("\n")}\n      </div>`;
 }
@@ -315,21 +359,20 @@ function buildQrSection() {
   const parts = [];
   if (opts.qr) {
     // Opens the full-screen copy in .qr-full
-    parts.push(`        <button type="button" class="qr-container" aria-label="Show the QR code full screen" title="Tap to enlarge">${qrSvg}</button>`);
-    if (opts.qrLabel)
-      parts.push(`        <p class="qr-label">${escHtml(opts.qrLabel)}</p>`);
+    parts.push(`        <button type="button" class="qr-container" aria-label="${escHtml(labels.showQr)}" title="${escHtml(labels.enlargeQr)}" data-i18n-aria="showQr" data-i18n-title="enlargeQr">${qrSvg}</button>`);
+    parts.push(translatedText("p", "qr-label", "qrLabel"));
   }
 
   const actions = [];
   if (opts.saveContact) {
     actions.push(`          <a href="${vcardDataUri}" download="${escHtml(vcardFilename)}" class="action-btn save-btn">
-            ${ICONS.download} ${escHtml(opts.saveLabel)}
+            ${ICONS.download} <span data-i18n="saveLabel">${escHtml(opts.saveLabel)}</span>
           </a>`);
   }
   if (opts.share) {
     // Revealed by script only where navigator.share exists
     actions.push(`          <button type="button" class="action-btn share-btn" hidden>
-            ${ICONS.share} ${escHtml(opts.shareLabel)}
+            ${ICONS.share} <span data-i18n="shareLabel">${escHtml(opts.shareLabel)}</span>
           </button>`);
   }
   if (actions.length)
@@ -342,8 +385,8 @@ function buildQrSection() {
 // for showing someone across a table: easier for any camera to read
 function buildQrDialog() {
   if (!opts.qr) return "";
-  return `  <dialog class="qr-full" aria-label="QR code for ${escHtml(config.name)}">
-    <button type="button" class="qr-full-close" aria-label="Close">&times;</button>
+  return `  <dialog class="qr-full${opts.paper ? " paper-qr" : ""}" aria-label="${escHtml(`${labels.qrFor} ${config.name}`)}" data-i18n-aria="qrFor">
+    <button type="button" class="qr-full-close" aria-label="${escHtml(labels.close)}" data-i18n-aria="close">&times;</button>
     <div class="qr-full-code">${qrSvg}</div>
     <p class="qr-full-name">${escHtml(config.name)}</p>
     <p class="qr-full-url">${escHtml(config.url.replace(/^https?:\/\//, ""))}</p>
@@ -352,7 +395,7 @@ function buildQrDialog() {
 
 // One absolutely positioned layer per background; the first starts visible.
 // data-poster is the frame held for visitors who prefer reduced motion.
-const bgLayersHtml = backgrounds
+const bgLayersHtml = opts.paper ? "" : backgrounds
   .map((name, i) => {
     const { render, poster } = BACKGROUNDS[name];
     const still = poster ? ` data-poster="${poster.toFixed(2)}"` : "";
@@ -361,8 +404,8 @@ const bgLayersHtml = backgrounds
   .join("\n");
 
 const bgDotsHtml =
-  backgrounds.length > 1
-    ? `  <nav class="bg-dots" aria-label="Card background">
+  !opts.paper && backgrounds.length > 1
+    ? `  <nav class="bg-dots" aria-label="${escHtml(labels.background)}" data-i18n-aria="background">
 ${backgrounds
   .map((name, i) => `    <button type="button" class="bg-dot" data-bg="${name}" aria-label="${escHtml(BACKGROUNDS[name].label)}" aria-pressed="${i === 0}"></button>`)
   .join("\n")}
@@ -372,7 +415,7 @@ ${backgrounds
 
 // ── Full HTML ────────────────────────────────────────────────
 const html = `<!DOCTYPE html>
-<html lang="${escHtml(config.lang)}">
+<html lang="${escHtml(config.lang)}" dir="${config.dir}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -401,19 +444,25 @@ ${
 ${indent(themeCss, 4)}
 
 ${indent(read("card.css"), 4)}
+${opts.paper ? indent(read("paper.css"), 4) : ""}
   </style>
 </head>
-<body>
-  <main class="${["card", backgrounds.length > 1 && "swipe", opts.glint && "glint"].filter(Boolean).join(" ")}">
+<body${opts.paper ? ' class="paper-page"' : ""}>
+  <main class="${["card", opts.paper && "paper", !opts.paper && backgrounds.length > 1 && "swipe", opts.glint && "glint"].filter(Boolean).join(" ")}">
 ${bgLayersHtml}
 
     <div class="content">
+${buildHeader()}
+      <div class="identity">
 ${buildPhotoHtml()}
-
+      <div class="identity-text">
       <h1 class="name">${escHtml(config.name)}</h1>
       <div class="subtitle">
         ${buildSubtitle()}
       </div>
+      </div>
+      </div>
+${opts.paper ? translatedText("p", "paper-tagline", "tagline") : ""}
 
 ${buildNowHtml()}
 ${buildContactInfo()}
@@ -422,11 +471,17 @@ ${buildLinksHtml()}
 
 ${buildQrSection()}
     </div>
+${opts.paper ? `    <svg class="paper-wave" viewBox="0 0 480 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="paper-wave-color"><stop stop-color="${theme.accent}"/><stop offset="1" stop-color="${theme.dark}"/></linearGradient></defs><path d="M0 30 C105 5 168 86 310 63 C395 49 437 26 480 0 V100 H0Z" fill="url(#paper-wave-color)"/></svg>` : ""}
   </main>
 ${bgDotsHtml}
 ${buildQrDialog()}
+${config.languages.length > 1 ? `  <script type="application/json" id="card-locales">${scriptJson(translations)}</script>` : ""}
   <script>
 ${indent(String(withPhoto), 4)}
+
+${indent(String(toVCardDataUri), 4)}
+
+${config.languages.length > 1 ? indent(read("language.js"), 4) : ""}
 
 ${indent(read("card.js"), 4)}
   </script>
@@ -582,3 +637,5 @@ console.log(
 );
 if (opts.pwa && photo && !photo.size)
   console.log("  (couldn't read the photo's dimensions, so the manifest gives its icon no size)");
+
+console.log(`  Languages: ${config.languages.join(", ")} (initial: ${config.lang})`);

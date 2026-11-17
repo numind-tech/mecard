@@ -1,27 +1,39 @@
 # mecard
 
-A digital business card. Edit one YAML file, get a single self-contained HTML page — show it on your phone, and anyone who scans the QR code gets the same card on theirs.
+Generate digital business cards from YAML. Each card has one HTML page
+for all its languages and optional PWA files.
+Run the generator locally, then publish the output on a static host.
 
-Photo, QR code, and contact file are all inlined, so the output is one HTML file with no external requests.
+- Any number of languages, selected from browser preferences or manually.
+- Paper and illustrated layouts.
+- Contact downloads, native sharing, and a QR for the card URL.
+
+Photos, logos, QR codes, translations and contact data are embedded in
+the HTML. Switching language does not reload the
+page or fetch assets from another site.
 
 ## Setup
 
-```bash
-git clone https://github.com/<you>/mecard.git
-cd mecard
-npm install
-cp config.example.yaml config.yaml
-```
-
-Edit `config.yaml`, add a square `photo.jpg` (~400×400px), then:
+Use **Node.js 22 or later** and npm.
+From the generator checkout, install the locked dependencies:
 
 ```bash
-npm run dev     # serve at 127.0.0.1:3000, rebuilding and reloading on every save
-npm run build   # write dist/ once
-npm test        # build sample configs and check the output
+npm ci
 ```
 
-Both `dev` and `build` take `--config <file>` and `--out <dir>`, so one checkout can produce several cards (`npm run build -- --config talk.yaml --out dist-talk`). Paths inside a config, such as `photo`, are relative to that config file.
+Create or edit `config.yaml` with the required `name` and `url`, then add contact details, a portrait and an optional logo. Asset paths are relative to the config file.
+
+Set `url` to the card's hosting address. The QR code and native sharing
+use that destination. The default build includes PWA files; set
+`options.pwa: false` for just `index.html`.
+
+```bash
+npm run dev               # live preview at http://127.0.0.1:3000
+npm run build -- --strict  # validate and generate dist/
+npm test                  # check the output using synthetic test data
+```
+
+Both `dev` and `build` take `--config <file>` and `--out <dir>`, so one checkout can produce several cards. Paths inside a config, such as `photo`, are relative to that config file.
 
 The build checks the config as it reads it and prints a warning for anything it has to work around: a misspelt key (with a suggestion), a colour that isn't a hex value, a link without a `url`, an unknown icon. Add `--strict` to make warnings fail the build.
 
@@ -44,15 +56,17 @@ Set `url:` in `config.yaml` to that address. The QR code encodes it, so if they 
 | Key | |
 |---|---|
 | `name` | Required |
-| `title` | Role, e.g. "Assistant Professor" |
-| `tagline` | Short line under the title, in the accent colour |
+| `title` | Role or job title |
+| `tagline` | Short introduction, also included as a note in the contact |
 | `organization` | |
 | `department` | Joined to `organization` with a `·` |
-| `lang` | Language of the page, e.g. `en` or `pt-BR`. Defaults to `en` |
+| `lang` | Fallback language when browser preferences do not match. Defaults to the first entry in `translations`, or `en` without translations |
+| `dir` | Text direction: `ltr` by default, or `rtl`; can also be set per translation |
 | `email` | Shown as text, tap to send |
 | `phone` | Shown as text, tap to call |
 | `website` | Shown as text, opens in a new tab |
-| `photo` | Local path or URL (a URL is downloaded at build time). Omit to show initials instead |
+| `photo` | Local or HTTP(S) JPEG, PNG, GIF or WebP, embedded at build time. Omit to show initials |
+| `logo` | Optional SVG file or inline SVG, sanitized like custom icons |
 | `url` | Required. Where the card is hosted — encoded into the QR code |
 
 Any of `email`, `phone`, `website`, and `photo` can be left out.
@@ -61,75 +75,63 @@ Web addresses must use HTTP or HTTPS, without embedded credentials or control ch
 
 Remote photos must resolve only to public IP addresses, including after redirects. Downloads are limited to 5 MiB, three redirects and 15 seconds overall; HTTPS cannot redirect to HTTP. Compressed HTTP responses are refused. A blocked or failed download uses initials instead (or fails with `--strict`). For a photo on a local or private service, download it yourself and use a local file path.
 
-Contact apps file the name by its last word, which suits "Ada Lovelace" but not "Johannes van der Waals" or "Jane Doe Jr.". Spell it out when it matters:
+Contact apps file the name by its last word. For compound names, specify `nameParts` with the keys `given`, `middle`, `family`, `prefix` and `suffix` as needed.
 
-```yaml
-nameParts:
-  given: Johannes Diderik
-  family: van der Waals
-  prefix: Prof.        # also: middle, suffix
-```
+### Languages
+
+Add as many language tags as you need under `translations`. Each entry can define `title`, `tagline`, `department`, `labels` and `dir`. All languages, including the initial one, use the same structure. Shared identity, contact details, links, logo, portrait and layout stay at the top level. Top-level editorial text remains a fallback for omitted translations; an empty string hides that text in a particular language.
+
+`npm run build` writes a single `dist/index.html`. Only text and photo-free contact data vary; the DOM, images, SVGs and styles are shared. The selector updates the current page, including accessibility labels, metadata and the contact download. Two languages use toggle buttons; three or more use a dropdown. Selection is remembered per page when browser storage is available, and switching still works when it is blocked or the file is opened locally.
+
+On first visit, the page chooses a language from the browser's preferences, in priority order. Exact tags take precedence over broader language/script matches: `fr-CA` can use `fr`, and `zh-Hant-TW` can use `zh-Hant`. A remembered manual selection takes precedence; automatic choices are not saved. If none match, `lang` is the fallback, or the first configured translation if it is omitted. `--lang <tag>` changes that fallback while keeping every language in the same page.
+
+Language tags are validated and normalized, including regional tags. Set `dir: rtl` within a translation for right-to-left text; the default is `ltr`.
+
+French and English interface defaults are included. For any other language, provide translated `labels`; omitted labels fall back to English. All interface labels can be configured:
+
+| Keys in `labels` | Purpose |
+|---|---|
+| `saveLabel`, `shareLabel`, `qrLabel` | Contact button, share button and QR caption |
+| `showQr`, `enlargeQr`, `qrFor`, `close` | QR button, tooltip, dialog title prefix and close button |
+| `language`, `background` | Language selector and background navigation |
+| `email`, `phone`, `website` | Contact field labels |
+| `digitalCard` | Label for the card URL in the downloaded contact |
+
+The previous top-level text plus `translations` overrides remains supported. Caption/button labels in `options` also remain supported and take precedence over `labels`. All translations are validated before writing output, including languages that are not initially displayed. Without JavaScript, the initial language and its contact download remain available.
 
 ### Now
 
-A short line about what you're up to, shown in a pill under your title:
+A short line about what you're up to, shown in a pill under your title. Set `now` to plain text, or use a mapping with required `text`, optional `until` in `YYYY-MM-DD` format, and optional `url`.
 
-```yaml
-now:
-  text: At DAMOP 2027 — come say hi
-  until: 2027-06-04          # optional: hidden after this day
-  url: https://example.org   # optional: makes the line a link
-```
-
-`now: Back in the lab` works too. Once `until` has passed, the build leaves the line out, and a card built earlier hides it when it loads, so it retires on time even if nobody rebuilds.
+Once `until` has passed, the build leaves the line out, and a card built earlier hides it when it loads, so it retires on time even if nobody rebuilds.
 
 ### Links
 
-Icon buttons, below the contact details:
-
-```yaml
-links:
-  - label: Google Scholar
-    url: https://scholar.google.com/citations?user=XXXXXXXX
-    icon: scholar
-  - label: CV
-    url: https://example.edu/cv.pdf
-    icon: file
-```
+Icon buttons below the contact details. Set `links` to a list of entries with `label`, `url` and `icon`.
 
 Available icons:
 
-`scholar` `orcid` `arxiv` `inspire` `researchgate` `file` `github` `linkedin` `twitter` `bluesky` `mastodon` `instagram` `youtube` `globe` `mail` `phone` `calendar` `link`
+`scholar` `orcid` `arxiv` `inspire` `researchgate` `file` `github` `linkedin` `twitter` `bluesky` `mastodon` `instagram` `youtube` `globe` `mail` `phone` `calendar` `link` `download` `share`
 
-`icon` can also be a path to an `.svg` file of your own (`icon: icons/lab.svg`); give it a `viewBox` and use `currentColor` so it takes the button's colour. An unknown name warns and falls back to `link`.
+`icon` can also be a path to an `.svg` file of your own; give it a `viewBox` and use `currentColor` so it takes the button's colour. An unknown name warns and falls back to `link`.
 
-Custom SVGs are parsed as XML and limited to static shapes, groups, gradients, masks, clipping paths and descriptions. Scripts, event handlers, CSS, animation, external references, DTDs and unsupported markup are rejected; the built-in link icon replaces the entire icon with a warning. Internal gradient/mask references such as `url(#paint)` are supported. Icons are limited to 1 MiB and 64 levels of nesting.
+Custom SVGs are parsed as XML and limited to static shapes, groups, gradients, masks, clipping paths and descriptions. Scripts, event handlers, CSS, animation, external references, DTDs and unsupported markup are rejected; the built-in link icon replaces the entire icon with a warning. Internal gradient/mask references are supported. Icons are limited to 1 MiB and 64 levels of nesting.
 
-### Theme
+### Layout and appearance
 
-Three colour bands run diagonally across the card, top-left to bottom-right:
+The default illustrated layout uses the configured backgrounds. Set
+`options.paper: true` for a paper card with labelled contact rows, visible
+link names and a footer wave.
 
-```yaml
-theme:
-  dark:   "#1e1e22"   # top band
-  mid:    "#2a3330"   # middle band — omit to blend dark and light
-  light:  "#1b4742"   # bottom band
-  accent: "#5b9eb8"   # links, icons, tagline
-  pop:    "#b34d3a"   # Save Contact button
-  page:   "#131315"   # page behind the card
-  text:   "#fbf9f6"   # foreground text
-```
+#### Theme colours
 
-Muted text is derived from `text`, so changing that one value keeps the hierarchy consistent. Colours are hex, like `"#1b4742"` or the shorthand `"#fff"`, and need their quotes: unquoted, the `#` starts a YAML comment and the colour is silently lost (the build warns when that happens).
+Three colour bands run diagonally across the card, top-left to bottom-right. The `theme` mapping accepts `dark`, `mid` and `light` for those bands, `accent` for links and icons, `pop` for the Save Contact button, `page` for the page background, and `text` for foreground text. Omit `mid` to blend `dark` and `light`.
+
+Muted text is derived from `text`. Colours use three- or six-digit hex notation and need quotes in YAML: an unquoted `#` starts a comment, so the build warns and uses the default colour instead.
 
 ### Backgrounds
 
-```yaml
-backgrounds:
-  - paul
-  - spectrum
-  - waves
-```
+Set `backgrounds` to an ordered list of names:
 
 | Name | |
 |---|---|
@@ -137,42 +139,75 @@ backgrounds:
 | `paul` | A Paul trap cross-section with a three-ion crystal swaying in its normal modes, lit by 493 nm and 650 nm beams |
 | `spectrum` | The barium emission spectrum as a spectrograph plate, with a scan that traces it along the bottom |
 
-The first entry is what visitors see first. With more than one, they can swipe the card sideways, tap the dots under it, or use the arrow keys to switch. Their last choice is remembered, and a link ending in `#spectrum` (or any other name) opens that background directly. Backgrounds that aren't showing are paused, and visitors who prefer reduced motion get each one as a still frame. The artwork is pinned to the bottom of the card and dims itself behind the text, wherever the text ends up, so it holds together however long or short the card is.
+In the illustrated layout, the first entry is what visitors see first. With more than one, they can swipe the card sideways, tap the dots under it, or use the arrow keys to switch. Their last choice is remembered, and a link ending in `#spectrum` (or any other name) opens that background directly. Backgrounds that aren't showing are paused, and visitors who prefer reduced motion get each one as a still frame. The paper layout uses its footer wave instead of these backgrounds.
 
 ### Options
 
-```yaml
-options:
-  glint: false              # light sweep across the card
-  animateWaves: true        # animate the band boundaries in the waves background
-  qr: true
-  saveContact: true
-  share: true               # Share button, where the device supports it
-  pwa: true                 # installable, works offline
-  qrLabel: Scan to connect
-  saveLabel: Save Contact
-  shareLabel: Share
-```
+The `options` mapping accepts these settings:
 
-All default to the values above. Animation is disabled automatically for visitors who set `prefers-reduced-motion`.
+| Key | Default | Purpose |
+|---|---|---|
+| `paper` | `false` | White card with visible link labels and a static footer wave instead of background animations; uses `dark` for buttons/QR and `accent` for the start of the wave |
+| `glint` | `false` | Light sweep across the card |
+| `animateWaves` | `true` | Animate the wave boundaries |
+| `qr` | `true` | Display the QR code |
+| `saveContact` | `true` | Offer contact download |
+| `share` | `true` | Offer sharing where supported |
+| `pwa` | `true` | Installable card with offline support |
 
-## Notes
+Use `labels` for interface text. The legacy `options.qrLabel`,
+`options.saveLabel` and `options.shareLabel` aliases remain supported and
+override the corresponding labels.
 
-The QR code encodes the card's URL rather than the contact data itself, so it stays sparse enough to scan quickly and you can change your details without the code going stale. Tap it to fill the screen with a black-on-white copy, which any camera reads easily; the screen stays awake until you close it.
+Animation is reduced or stopped for visitors who set `prefers-reduced-motion`.
 
-**Save Contact** downloads a vCard 3.0 `.vcf` with the photo embedded, which imports cleanly on iOS and Android. (The page holds the vCard without the photo and adds it from the `<img>` when it's saved, so the image isn't carried twice.) The tagline goes in as a note, and the card's URL and each link go in labelled ("Google Scholar", "CV"), which iOS shows; other apps list them as plain URLs.
+## Contact exchange
 
-**Search engines** get a schema.org `Person` with your title, organization and contact details, and the links that are profiles (Scholar, ORCID, GitHub and so on, but not files like a CV) listed as `sameAs`.
+### QR modes
 
-**Share** uses the Web Share API to hand the card's URL to the system share sheet. The button stays hidden on platforms without it, so nothing appears broken on older desktop browsers.
+The QR code encodes the card's URL. Tap the preview to open a larger
+copy. The page requests a
+[screen wake lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API)
+when supported and permitted by the browser.
 
-**PWA**: with `pwa: true` the build also emits `manifest.webmanifest`, `sw.js`, and icons, so the card can be added to your home screen and opens full-screen and offline. Turn it off if you'd rather have `index.html` be the only output — the page itself is self-contained either way. The plain icon is your photo (or an SVG of your initials). Android gets a "maskable" one as well: the card's bands with your photo in the middle, drawn so the launcher can crop it to any shape instead of shrinking it onto a white disc.
+### Download and native sharing
 
-The build writes to `dist/`, which is gitignored; the workflow publishes that directory. It runs `npm test` first, and runs it on pull requests too, without deploying them.
+**Save contact** provides a vCard 3.0 `.vcf` file for contact apps. The
+operating system and browser determine whether it opens an import screen
+or downloads the file first. With JavaScript enabled, the save action
+adds the embedded portrait. The tagline
+becomes a note, and links are exported with their labels for apps that
+support them.
 
-## Changing the card itself
+The **Share** button opens the system share sheet for the card URL. It is shown only when the
+[Web Share API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Share_API)
+is available, which depends on the browser and a secure context.
 
-`build.js` assembles the page from the config. The look lives in `card.css` and the behaviour in `card.js`, both plain files that the build inlines; the theme reaches the stylesheet as CSS variables. Backgrounds are in `backgrounds.js` and icons in `icons.js`. `npm run dev` rebuilds when any of them change.
+## Generated files
+
+| Build | Files to publish |
+|---|---|
+| One card, `pwa: false` | `index.html` |
+| One card, `pwa: true` (default) | The same files, plus `manifest.webmanifest`, `sw.js`, a portrait or initials icon, and maskable PNG icons |
+
+Builds default to `dist/`. Keep the output directory together when
+copying or publishing it.
+
+**PWA**: the manifest and service worker support installation and offline
+reopening after the page has been loaded and cached. The installed card
+uses an app window. The build also supplies maskable
+icons for launchers. Installation depends on browser support and
+[HTTPS or a local development server](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
+
+**Metadata**: the HTML includes Open Graph fields and schema.org
+`Person` data with profile links listed as `sameAs`.
+
+## Development
+
+`build.js` assembles one card. Layout lives in `card.css` and `paper.css`. Page behavior
+lives in `card.js` and `language.js`,
+all embedded in the generated HTML. `locales.js`, `backgrounds.js`
+and `icons.js` supply interface text and artwork. `npm run dev` rebuilds on source or data changes.
 
 ## License
 

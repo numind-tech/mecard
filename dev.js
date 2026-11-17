@@ -18,6 +18,7 @@ try {
       config: { type: "string", short: "c", default: "config.yaml" },
       out: { type: "string", short: "o", default: "dist" },
       strict: { type: "boolean" },
+      lang: { type: "string" },
     },
   }).values;
 } catch (err) {
