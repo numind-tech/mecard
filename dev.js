@@ -135,5 +135,8 @@ server.on("error", (err) => {
   console.error(err.code === "EADDRINUSE" ? `Port ${port} is busy; try PORT=3001 npm run dev` : err.message);
   process.exit(1);
 });
-server.listen(port, () => console.log(`\n  → http://localhost:${port}  (watching for changes)\n`));
+server.listen(port, "127.0.0.1", () => {
+  const address = server.address();
+  console.log(`\n  → http://${address.address}:${address.port}  (watching for changes)\n`);
+});
 build();

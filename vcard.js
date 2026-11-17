@@ -2,11 +2,13 @@
 //  vCard 3.0 (RFC 2426), which iOS and Android both import
 // ─────────────────────────────────────────────────────────────
 
+import { validateUrl, LINK_PROTOCOLS } from "./urls.js";
+
 // Text values escape backslash, comma, semicolon and newlines
 export const escText = (s) =>
   String(s)
     .replace(/[\\,;]/g, (c) => "\\" + c)
-    .replace(/\r?\n/g, "\\n");
+    .replace(/\r\n|\r|\n/g, "\\n");
 
 // Lines over 75 octets continue on the next line after one space.
 // Breaks fall between characters so multi-byte UTF-8 stays whole.
@@ -54,13 +56,13 @@ export function buildVCard(config) {
   if (config.tagline) lines.push(`NOTE:${escText(config.tagline)}`);
   if (config.email) lines.push(`EMAIL;TYPE=INTERNET,WORK:${escText(config.email)}`);
   if (config.phone) lines.push(`TEL;TYPE=WORK,VOICE:${escText(config.phone)}`);
-  if (config.website) lines.push(`URL:${config.website}`);
+  if (config.website) lines.push(`URL:${validateUrl(config.website, "website")}`);
 
   // Grouped URLs carry a label; iOS shows it, other apps fall back to "URL"
   const labelled = config.links.map((l) => [l.label, l.url]);
   if (config.url !== config.website) labelled.unshift(["Digital card", config.url]);
   labelled.forEach(([label, url], i) => {
-    lines.push(`item${i + 1}.URL:${url}`, `item${i + 1}.X-ABLabel:${escText(label)}`);
+    lines.push(`item${i + 1}.URL:${validateUrl(url, "vCard URL", LINK_PROTOCOLS)}`, `item${i + 1}.X-ABLabel:${escText(label)}`);
   });
 
   lines.push("END:VCARD");

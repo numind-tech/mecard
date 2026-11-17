@@ -16,7 +16,7 @@ cp config.example.yaml config.yaml
 Edit `config.yaml`, add a square `photo.jpg` (~400×400px), then:
 
 ```bash
-npm run dev     # serve at localhost:3000, rebuilding and reloading on every save
+npm run dev     # serve at 127.0.0.1:3000, rebuilding and reloading on every save
 npm run build   # write dist/ once
 npm test        # build sample configs and check the output
 ```
@@ -24,6 +24,8 @@ npm test        # build sample configs and check the output
 Both `dev` and `build` take `--config <file>` and `--out <dir>`, so one checkout can produce several cards (`npm run build -- --config talk.yaml --out dist-talk`). Paths inside a config, such as `photo`, are relative to that config file.
 
 The build checks the config as it reads it and prints a warning for anything it has to work around: a misspelt key (with a suggestion), a colour that isn't a hex value, a link without a `url`, an unknown icon. Add `--strict` to make warnings fail the build.
+
+The preview server listens only on your computer's IPv4 loopback interface.
 
 ## Deploy to GitHub Pages
 
@@ -54,6 +56,10 @@ Set `url:` in `config.yaml` to that address. The QR code encodes it, so if they 
 | `url` | Required. Where the card is hosted — encoded into the QR code |
 
 Any of `email`, `phone`, `website`, and `photo` can be left out.
+
+Web addresses must use HTTP or HTTPS, without embedded credentials or control characters. Link buttons also accept `mailto:` and `tel:`. Unsafe URLs stop the build.
+
+Remote photos must resolve only to public IP addresses, including after redirects. Downloads are limited to 5 MiB, three redirects and 15 seconds overall; HTTPS cannot redirect to HTTP. Compressed HTTP responses are refused. A blocked or failed download uses initials instead (or fails with `--strict`). For a photo on a local or private service, download it yourself and use a local file path.
 
 Contact apps file the name by its last word, which suits "Ada Lovelace" but not "Johannes van der Waals" or "Jane Doe Jr.". Spell it out when it matters:
 
@@ -96,6 +102,8 @@ Available icons:
 `scholar` `orcid` `arxiv` `inspire` `researchgate` `file` `github` `linkedin` `twitter` `bluesky` `mastodon` `instagram` `youtube` `globe` `mail` `phone` `calendar` `link`
 
 `icon` can also be a path to an `.svg` file of your own (`icon: icons/lab.svg`); give it a `viewBox` and use `currentColor` so it takes the button's colour. An unknown name warns and falls back to `link`.
+
+Custom SVGs are parsed as XML and limited to static shapes, groups, gradients, masks, clipping paths and descriptions. Scripts, event handlers, CSS, animation, external references, DTDs and unsupported markup are rejected; the built-in link icon replaces the entire icon with a warning. Internal gradient/mask references such as `url(#paint)` are supported. Icons are limited to 1 MiB and 64 levels of nesting.
 
 ### Theme
 

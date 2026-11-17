@@ -9,6 +9,7 @@ import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "fs
 import { createServer } from "http";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
+import { runInNewContext } from "node:vm";
 import ICAL from "ical.js";
 import { loadConfig } from "../config.js";
 import { buildVCard, fold, withPhoto } from "../vcard.js";
@@ -236,8 +237,10 @@ test("lang, custom icons and </script> in values come through safely", async () 
   assert.equal(html.split("</script>").length - 1, html.split("<script").length - 1);
 });
 
-test("a web-address photo is downloaded and inlined", async (t) => {
+test("a private-network photo is refused before making a request", async (t) => {
+  let requests = 0;
   const server = createServer((req, res) => {
+    requests++;
     res.writeHead(200, { "Content-Type": "image/jpeg" });
     res.end(readFileSync(PHOTO));
   });
@@ -247,9 +250,97 @@ test("a web-address photo is downloaded and inlined", async (t) => {
 
   const { code, stderr, html, out } = await build(`${BASIC}photo: http://127.0.0.1:${port}/me.jpg\n`);
   assert.equal(code, 0, stderr);
-  assert.match(html, /<img class="photo" src="data:image\/jpeg;base64,/);
-  assert.ok(parseVCard(savedVCardOf(html)).getFirstPropertyValue("photo"));
-  assert.ok(existsSync(join(out, "icon.jpg")));
+  assert.match(stderr, /public IP address/);
+  assert.doesNotMatch(html, /<img class="photo"/);
+  assert.ok(!existsSync(join(out, "icon.jpg")));
+  assert.equal(requests, 0);
+  const strict = await build(`${BASIC}photo: http://127.0.0.1:${port}/me.jpg\n`, "--strict");
+  assert.equal(strict.code, 1);
+  assert.equal(strict.html, null);
+  assert.equal(requests, 0);
+});
+
+test("malicious file and inline SVGs never reach the built page", async () => {
+  const dir = tempDir();
+  const attack = '<svg viewBox="0 0 24 24" onload="window.__svgAttack=1"><script>window.__svgAttack=1</script></svg>';
+  writeFileSync(join(dir, "bad.svg"), attack);
+  const yaml = `${BASIC}links:\n  - label: File\n    url: https://example.org\n    icon: ${join(dir, "bad.svg")}\n  - label: Inline\n    url: https://example.org\n    icon: '${attack}'\n`;
+  const { code, stderr, html } = await build(yaml);
+  assert.equal(code, 0, stderr);
+  assert.match(stderr, /unsafe, unsupported or invalid SVG/);
+  assert.doesNotMatch(html, /__svgAttack|onload=/);
+  const strict = await build(yaml, "--strict");
+  assert.equal(strict.code, 1);
+  assert.equal(strict.html, null);
+});
+
+// Execute the generated worker's event handlers against an in-memory cache
+// store shared by several scopes, just like CacheStorage on one origin.
+function worker(source, scope, store) {
+  const events = {};
+  let online = true;
+  const key = (request) => new URL(typeof request === "string" ? request : request.url, scope).href;
+  runInNewContext(source, {
+    self: {
+      registration: { scope },
+      addEventListener: (name, handler) => { events[name] = handler; },
+      skipWaiting: async () => {},
+      clients: { claim: async () => {} },
+    },
+    caches: {
+      keys: async () => [...store.keys()],
+      delete: async (name) => store.delete(name),
+      open: async (name) => {
+        if (!store.has(name)) store.set(name, new Map());
+        const cache = store.get(name);
+        return {
+          addAll: async (assets) => assets.forEach((asset) => cache.set(key(asset), `${scope}:${asset}`)),
+          match: async (request) => cache.get(key(request)),
+        };
+      },
+      match: () => { throw new Error("must not search other applications' caches"); },
+    },
+    fetch: async () => {
+      if (!online) throw new Error("offline");
+      return "network response";
+    },
+  }, { timeout: 1000 });
+  return {
+    offline: () => { online = false; },
+    dispatch: (name, request) => {
+      let promise;
+      events[name]({ request, waitUntil: (p) => { promise = p; }, respondWith: (p) => { promise = p; } });
+      return promise;
+    },
+  };
+}
+
+test("service workers preserve caches of other applications and other cards", async () => {
+  const { code, stderr, out } = await build(BASIC);
+  assert.equal(code, 0, stderr);
+  const source = readFileSync(join(out, "sw.js"), "utf-8");
+  const a = "https://example.org/card-a/", b = `${a}-nested/`;
+  const oldA = `mecard-${encodeURIComponent(a)}:old`;
+  const oldB = `mecard-${encodeURIComponent(b)}:old`;
+  const store = new Map([oldA, oldB, "other-app-cache", "mecard-legacy"].map((name) => [name, new Map()]));
+  const first = worker(source, a, store), second = worker(source, b, store);
+  await first.dispatch("install");
+  await second.dispatch("install");
+  const installed = [...store.keys()].filter((name) => ![oldA, oldB, "other-app-cache", "mecard-legacy"].includes(name));
+  assert.equal(installed.length, 2, "identical builds at different paths need separate caches");
+  await first.dispatch("activate");
+  assert.equal(store.has(oldA), false);
+  for (const name of [oldB, "other-app-cache", "mecard-legacy", ...installed]) assert.equal(store.has(name), true, name);
+  await second.dispatch("activate");
+  assert.equal(store.has(oldB), false);
+  for (const name of ["other-app-cache", "mecard-legacy", ...installed]) assert.equal(store.has(name), true, name);
+
+  // A foreign cache must not supply assets for this card.
+  const url = `${a}unlisted.png`;
+  store.get("other-app-cache").set(url, "foreign response");
+  assert.equal(await first.dispatch("fetch", { method: "GET", mode: "cors", url }), "network response");
+  first.offline();
+  assert.equal(await first.dispatch("fetch", { method: "GET", mode: "navigate", url: a }), `${a}:index.html`);
 });
 
 test("turning PWA off clears the old PWA files", async () => {

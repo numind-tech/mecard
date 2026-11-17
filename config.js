@@ -2,8 +2,8 @@
 //  Config: read the YAML, check it, and fill in defaults
 // ─────────────────────────────────────────────────────────────
 //  Problems that still leave a usable card are reported through
-//  `warn` and repaired or skipped; only a missing name or url, or
-//  YAML that won't parse, throws. Relative paths (photo, custom
+//  `warn` and repaired or skipped; missing required values, invalid
+//  YAML and unsafe URLs throw. Relative paths (photo, custom
 //  icons) are resolved against the config file's own directory.
 // ─────────────────────────────────────────────────────────────
 
@@ -12,6 +12,8 @@ import { dirname, resolve } from "path";
 import { parse } from "yaml";
 import { BACKGROUNDS, mix } from "./backgrounds.js";
 import { ICONS } from "./icons.js";
+import { cleanSvg } from "./svg.js";
+import { validateUrl, WEB_PROTOCOLS, LINK_PROTOCOLS } from "./urls.js";
 
 export const THEME = {
   dark: "#1e1e22",
@@ -163,7 +165,7 @@ function loadLinks(raw, base, warn) {
       warn(`${where} (${link.label ?? "no label"}) has no url — skipped`);
       return;
     }
-    const url = webUrl(String(link.url), `${where}.url`, warn);
+    const url = webUrl(String(link.url), `${where}.url`, warn, LINK_PROTOCOLS);
     if (!link.label) warn(`${where} has no label, which screen readers announce — using the address`);
     const icon = loadIcon(link.icon, base, (msg) => warn(`${where}.icon: ${msg}`));
     links.push({ label: String(link.label || hostOf(url)), url, ...icon });
@@ -217,22 +219,9 @@ export function loadIcon(spec, base, warn) {
     return { iconName: "custom", icon: cleanSvg(readFileSync(file, "utf-8"), warn) };
   }
   const name = s.toLowerCase();
-  if (ICONS[name]) return { iconName: name, icon: ICONS[name] };
+  if (Object.hasOwn(ICONS, name)) return { iconName: name, icon: ICONS[name] };
   warn(`unknown icon ${s}${hint(name, Object.keys(ICONS))} — using link`);
   return fallback;
-}
-
-// Keep just the <svg> element, dropping any XML prolog, doctype or comments
-function cleanSvg(src, warn) {
-  const svg = src.replace(/<!--[\s\S]*?-->/g, "").match(/<svg[\s\S]*<\/svg>/i)?.[0];
-  if (!svg) {
-    warn("not an SVG — using link");
-    return ICONS.link;
-  }
-  if (!/viewBox=/i.test(svg.slice(0, svg.indexOf(">")))) {
-    warn("SVG has no viewBox, so it may be cropped instead of scaled");
-  }
-  return svg;
 }
 
 // ── Values ───────────────────────────────────────────────────
@@ -260,10 +249,12 @@ export function normHex(value) {
   return "#" + h.toLowerCase();
 }
 
-function webUrl(value, key, warn) {
-  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return value;
-  warn(`${key} has no https:// — assuming https://${value}`);
-  return `https://${value}`;
+function webUrl(value, key, warn, protocols = WEB_PROTOCOLS) {
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+    warn(`${key} has no https:// — assuming https://${value}`);
+    value = `https://${value}`;
+  }
+  return validateUrl(value, key, protocols);
 }
 
 function hostOf(url) {
