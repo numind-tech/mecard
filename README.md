@@ -7,7 +7,7 @@ host. Card data and branding can live in a separate private repository.
 
 - Any number of languages, selected from browser preferences or manually.
 - Paper and illustrated layouts.
-- Contact downloads, native sharing, and a QR for the card URL.
+- Contact downloads, native sharing, and contact QR codes.
 - One card or a whole site, with shared defaults and a URL per person.
 
 Photos, logos, QR codes, translations and contact data are embedded in
@@ -25,7 +25,7 @@ npm ci
 
 Create or edit `config.yaml` with the required `name` and `url`, then add contact details, a portrait and an optional logo. Asset paths are relative to the config file.
 
-Set `url` to the card's hosting address. The QR code and native sharing
+Set `url` to the card's hosting address. URL QR mode and native sharing
 use that destination. The default build includes PWA files; set
 `options.pwa: false` for just `index.html`.
 
@@ -159,7 +159,7 @@ Custom SVGs are parsed as XML and limited to static shapes, groups, gradients, m
 
 The default illustrated layout uses the configured backgrounds. Set
 `options.paper: true` for a paper card with labelled contact rows, visible
-link names and a footer wave.
+link names and an animated footer wave.
 
 #### Theme colours
 
@@ -190,6 +190,7 @@ The `options` mapping accepts these settings:
 | `glint` | `false` | Light sweep across the card |
 | `animateWaves` | `true` | Animate the wave boundaries, including the paper layout's footer; set to `false` for a still wave |
 | `qr` | `true` | Display the QR code |
+| `qrContact` | `false` | Encode the photo-free vCard in the QR; in the paper layout, place it beside the contact details |
 | `saveContact` | `true` | Offer contact download |
 | `share` | `true` | Offer sharing where supported |
 | `pwa` | `true` | Installable card with offline support |
@@ -210,17 +211,21 @@ Do not block search crawlers with `Disallow: /` in `robots.txt`: they need to re
 
 ### QR modes
 
-The QR code encodes the card's URL. Tap the preview to open a larger
-copy. The page requests a
+By default the QR code encodes the card's URL, so it stays sparse and your details can change without replacing the code. Set `options.qrContact: true` to encode the contact itself: name, role, organization, email, telephone, website and configured links, without the portrait. Compatible scanning apps can offer to import the contact without opening the website. The QR updates with the selected language. In the paper layout it sits beside the contact details, or below them on very narrow screens. Give `labels.qrLabel` an appropriate contact caption in each language.
+
+Tap the QR preview to open a larger dark-on-white copy. Contact QR codes
+are denser, so use this view if another phone has difficulty scanning the
+preview. The page requests a
 [screen wake lock](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API)
-when supported and permitted by the browser.
+when supported and permitted by the browser. Contact QR codes contain
+the details from the last build and must be regenerated after a change.
 
 ### Download and native sharing
 
 **Save contact** provides a vCard 3.0 `.vcf` file for contact apps. The
 operating system and browser determine whether it opens an import screen
 or downloads the file first. With JavaScript enabled, the save action
-adds the embedded portrait. The tagline
+adds the embedded portrait; the contact QR always omits it. The tagline
 becomes a note, and links are exported with their labels for apps that
 support them.
 

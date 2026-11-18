@@ -11,7 +11,7 @@ const FR = {
   showQr: "Afficher le QR code en plein écran", enlargeQr: "Agrandir le QR code",
   close: "Fermer", qrFor: "QR code de", language: "Langue",
   background: "Fond de la carte", digitalCard: "Carte de visite",
-  email: "E-mail", phone: "Téléphone", website: "Site web",
+  email: "Mél", phone: "Téléphone", website: "Site web",
 };
 
 export const labelsFor = (lang = "en") => /^fr(?:-|$)/i.test(lang) ? FR : EN;

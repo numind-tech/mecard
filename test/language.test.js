@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import ICAL from "ical.js";
 import { buildVCard, withPhoto, toVCardDataUri } from "../vcard.js";
+import { contactQrGeometry } from "../contact-qr.js";
 
 const languageScript = readFileSync(new URL("../language.js", import.meta.url), "utf8");
 const cardScript = readFileSync(new URL("../card.js", import.meta.url), "utf8");
@@ -52,6 +53,12 @@ function browser({ values = translations, saved, blocked = false, dropdown = fal
   const data = new Element({}, JSON.stringify(values));
   const texts = Object.fromEntries(["title", "tagline", "org", "saveLabel", "shareLabel"].map(key => [key, new Element({ "data-i18n": key, "data-hide-empty": "" })]));
   const qr = new Element({ "data-i18n-aria": "showQr" });
+  const qrCodes = [0, 1].map(() => {
+    const svg = new Element();
+    svg.path = new Element();
+    svg.querySelector = selector => selector === '[data-qr-modules]' ? svg.path : null;
+    return svg;
+  });
   const control = new Element({ "data-i18n-aria": "language" });
   control.hidden = true;
   const buttons = dropdown ? [] : Object.keys(values).map(lang => new Element({ "data-language": lang }));
@@ -71,6 +78,7 @@ function browser({ values = translations, saved, blocked = false, dropdown = fal
     })[selector] ?? null,
     querySelectorAll: selector => ({
       "[data-language]": buttons,
+      "[data-contact-qr]": qrCodes,
       "[data-i18n]": Object.values(texts),
       "[data-i18n-aria]": [qr, control],
       "[data-i18n-title]": [],
@@ -91,7 +99,7 @@ function browser({ values = translations, saved, blocked = false, dropdown = fal
   };
   runInNewContext(languageScript, context);
   runInNewContext(cardScript, context);
-  return { document, texts, qr, control, buttons, select, save, schema, metas, state, events };
+  return { document, texts, qr, qrCodes, control, buttons, select, save, schema, metas, state, events };
 }
 
 const contact = save => new ICAL.Component(ICAL.parse(Buffer.from(save.href.split(",")[1], "base64").toString("utf8")));
@@ -186,4 +194,19 @@ test("language matching prefers specific regions and scripts before broader fall
   assert.equal(choose(["en-AU"]), "en-GB");
   assert.equal(choose(["zh-Hant-TW", "en-US"]), "zh-Hant");
   assert.equal(choose(["zh-Hans-CN"]), "zh-Hans");
+});
+
+test("contact QR follows browser language and manual selection even without contact download", () => {
+  const values = Object.fromEntries(Object.entries(translations).map(([lang, value]) => [lang, {
+    ...value, qr: contactQrGeometry(value.vcard),
+  }]));
+  const page = browser({ values, preferred: ['ja-JP'], saveContact: false });
+  for (const lang of ['ja', 'en', 'fr']) {
+    if (lang !== 'ja') page.buttons.find(button => button.dataset.language === lang).emit('click');
+    for (const svg of page.qrCodes) {
+      assert.equal(svg.getAttribute('viewBox'), values[lang].qr.viewBox);
+      assert.equal(svg.path.getAttribute('d'), values[lang].qr.path);
+    }
+  }
+  assert.notEqual(values.en.qr.path, values.fr.qr.path);
 });

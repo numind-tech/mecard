@@ -32,6 +32,7 @@ export const OPTIONS = {
   glint: false,
   animateWaves: true,
   qr: true,
+  qrContact: false,
   saveContact: true,
   share: true,
   pwa: true,

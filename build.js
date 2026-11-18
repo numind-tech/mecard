@@ -13,6 +13,7 @@ import { loadConfig, NO_INDEX } from "./config.js";
 import { ICONS } from "./icons.js";
 import { buildVCard, withPhoto, toVCardDataUri } from "./vcard.js";
 import { downloadPhoto } from "./photo.js";
+import { contactQrGeometry, contactQrSvg } from "./contact-qr.js";
 
 // ── Arguments ────────────────────────────────────────────────
 let args;
@@ -172,8 +173,15 @@ const cardBase = (() => {
   return u.href;
 })();
 
-// ── QR code (light modules for dark background) ──────────────
-const qrSvg = await QRCode.toString(config.url, {
+// ── vCard and QR codes ──────────────────────────────────────
+// A contact QR carries the same photo-free contact as the download. Geometry
+// varies with language; no duplicate photos or browser QR library are needed.
+const vcard = buildVCard(config);
+const contactQr = opts.qr && opts.qrContact;
+const contactQrs = contactQr ? Object.fromEntries(variants.map(variant => [
+  variant.lang, contactQrGeometry(buildVCard(variant)),
+])) : {};
+const qrSvg = contactQr ? contactQrSvg(contactQrs[config.lang]) : await QRCode.toString(config.url, {
   type: "svg",
   margin: 0,
   color: { dark: opts.paper ? theme.dark : "#ffffffdd", light: "#00000000" },
@@ -182,7 +190,6 @@ const qrSvg = await QRCode.toString(config.url, {
 
 // ── vCard ────────────────────────────────────────────────────
 // Without the photo: card.js adds it from the <img> when it's saved
-const vcard = buildVCard(config);
 const vcardDataUri = toVCardDataUri(vcard);
 // Characters that some file systems refuse become underscores
 const vcardFilename = config.name.replace(/[\s\\/:*?"<>|]+/g, "_") + ".vcf";
@@ -201,6 +208,7 @@ const translations = Object.fromEntries(variants.map((variant) => [variant.lang,
   department: variant.department,
   summary: [variant.title, variant.organization].filter(Boolean).join(" — "),
   vcard: opts.saveContact ? buildVCard(variant) : undefined,
+  qr: contactQrs[variant.lang],
 }]));
 
 // ── Structured data ──────────────────────────────────────────
@@ -332,7 +340,7 @@ function buildContactInfo() {
       label: "website",
     });
 
-  if (!entries.length) return "";
+  if (!entries.length && !(opts.paper && contactQr)) return "";
 
   const rows = entries.map((e, i) => {
     const delay = (0.35 + i * 0.07).toFixed(2);
@@ -343,7 +351,14 @@ function buildContactInfo() {
     return `        <a href="${escHtml(e.href)}"${rel} class="contact-row" style="animation-delay:${delay}s">${e.icon}${text}</a>`;
   });
 
-  return `      <div class="contact-info">\n${rows.join("\n")}\n      </div>`;
+  const info = `      <div class="contact-info">\n${rows.join("\n")}\n      </div>`;
+  if (!opts.paper || !contactQr) return entries.length ? info : "";
+  return `      <div class="contact-block${entries.length ? "" : " contact-block-solo"}">
+${entries.length ? info : ""}
+        <div class="contact-qr">${buildQrButton()}
+          ${translatedText("p", "qr-label", "qrLabel")}
+        </div>
+      </div>`;
 }
 
 function buildLinksHtml() {
@@ -357,12 +372,16 @@ function buildLinksHtml() {
   return `      <div class="links">\n${buttons.join("\n")}\n      </div>`;
 }
 
+function buildQrButton() {
+  return `<button type="button" class="qr-container" aria-label="${escHtml(labels.showQr)}" title="${escHtml(labels.enlargeQr)}" data-i18n-aria="showQr" data-i18n-title="enlargeQr">${qrSvg}</button>`;
+}
+
 function buildQrSection() {
   if (!opts.qr && !opts.saveContact && !opts.share) return "";
   const parts = [];
-  if (opts.qr) {
+  if (opts.qr && !(opts.paper && contactQr)) {
     // Opens the full-screen copy in .qr-full
-    parts.push(`        <button type="button" class="qr-container" aria-label="${escHtml(labels.showQr)}" title="${escHtml(labels.enlargeQr)}" data-i18n-aria="showQr" data-i18n-title="enlargeQr">${qrSvg}</button>`);
+    parts.push(`        ${buildQrButton()}`);
     parts.push(translatedText("p", "qr-label", "qrLabel"));
   }
 
@@ -381,7 +400,7 @@ function buildQrSection() {
   if (actions.length)
     parts.push(`        <div class="actions">\n${actions.join("\n")}\n        </div>`);
 
-  return `      <div class="qr-section">\n${parts.join("\n")}\n      </div>`;
+  return parts.length ? `      <div class="qr-section">\n${parts.join("\n")}\n      </div>` : "";
 }
 
 // The QR code again, dark on white and as large as the screen allows,
@@ -634,7 +653,7 @@ for (const name of OUTPUTS) {
 
 console.log(`✓ Built ${OUT}/ for ${config.name}`);
 console.log(`  Files: ${written.join(", ")}`);
-console.log(`  QR encodes: ${config.url}`);
+console.log(`  QR encodes: ${contactQr ? "vCard contact (without photo)" : config.url}`);
 console.log(
   `  Backgrounds: ${backgrounds.join(", ")}  Animate waves: ${opts.animateWaves ? "on" : "off"}  Glint: ${opts.glint ? "on" : "off"}` +
     `  Share: ${opts.share ? "on" : "off"}  PWA: ${opts.pwa ? "on" : "off"}`

@@ -36,6 +36,12 @@
       schema.textContent = JSON.stringify(person).replace(/</g, '\\u003c');
     }
     if (save) save.href = toVCardDataUri(value.vcard);
+    if (value.qr) {
+      for (const svg of document.querySelectorAll('[data-contact-qr]')) {
+        svg.setAttribute('viewBox', value.qr.viewBox);
+        svg.querySelector('[data-qr-modules]').setAttribute('d', value.qr.path);
+      }
+    }
     if (remember) {
       try { localStorage.setItem(storageKey, lang); } catch (e) {}
     }
