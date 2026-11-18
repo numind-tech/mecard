@@ -15,6 +15,7 @@ import { buildVCard, withPhoto, toVCardDataUri } from "./vcard.js";
 import { downloadPhoto } from "./photo.js";
 import { contactQrGeometry, contactQrSvg } from "./contact-qr.js";
 import { appearanceTheme } from "./appearance-theme.js";
+import { linkedinHandle } from "./urls.js";
 
 // ── Arguments ────────────────────────────────────────────────
 let args;
@@ -76,6 +77,7 @@ const indent = (text, n) => text.replace(/^(?=.)/gm, " ".repeat(n));
 
 // One line about the person, for search results, link previews and shares
 const summary = [config.title, config.organization].filter(Boolean).join(" — ");
+const pageTitle = [config.name, config.organization].filter(Boolean).join(" — ");
 
 // ── Photo ────────────────────────────────────────────────────
 const IMAGE_TYPES = {
@@ -180,10 +182,13 @@ const cardBase = (() => {
 // varies with language; no duplicate photos or browser QR library are needed.
 const vcard = buildVCard(config);
 const contactQr = opts.qr && opts.qrContact;
-const contactQrs = contactQr ? Object.fromEntries(variants.map(variant => [
+const qrToggle = opts.qr && opts.qrToggle;
+const qrByContacts = opts.paper && (contactQr || qrToggle);
+const contactQrs = contactQr || qrToggle ? Object.fromEntries(variants.map(variant => [
   variant.lang, contactQrGeometry(buildVCard(variant)),
 ])) : {};
-const qrSvg = contactQr ? contactQrSvg(contactQrs[config.lang]) : await QRCode.toString(config.url, {
+const linkQr = qrToggle ? contactQrGeometry(config.url) : null;
+const qrSvg = contactQr || qrToggle ? contactQrSvg(contactQr ? contactQrs[config.lang] : linkQr) : await QRCode.toString(config.url, {
   type: "svg",
   margin: 0,
   color: { dark: opts.paper ? theme.dark : "#ffffffdd", light: "#00000000" },
@@ -210,8 +215,19 @@ const translations = Object.fromEntries(variants.map((variant) => [variant.lang,
   department: variant.department,
   summary: [variant.title, variant.organization].filter(Boolean).join(" — "),
   vcard: opts.saveContact ? buildVCard(variant) : undefined,
-  qr: contactQrs[variant.lang],
+  qr: qrToggle ? undefined : contactQrs[variant.lang],
 }]));
+
+const qrModes = qrToggle ? {
+  initial: contactQr ? "contact" : "link",
+  defaultLang: config.lang,
+  link: linkQr,
+  variants: Object.fromEntries(variants.map(variant => [variant.lang, {
+    contact: contactQrs[variant.lang],
+    contactLabel: variant.labels.qrContactLabel,
+    linkLabel: variant.labels.qrLinkLabel,
+  }])),
+} : null;
 
 // ── Structured data ──────────────────────────────────────────
 // A schema.org Person, so search engines can connect the card to the
@@ -255,10 +271,32 @@ function escHtml(s) {
 // JSON inside <script> must not contain "</script>", so escape every "<"
 const scriptJson = (value, indent) => JSON.stringify(value, null, indent).replace(/</g, "\\u003c");
 
+// Invisible text shares the same grid cell as the active label. Its natural
+// wrapping reserves space for every language at the current screen width.
+// Only text is repeated; it is inert and excluded from accessible names.
+function reserveTranslations(content, keys) {
+  const sizes = new Map();
+  for (const [lang, variant] of Object.entries(translations)) {
+    for (const key of keys) {
+      const text = variant.text[key] ?? "";
+      sizes.set(`${variant.dir}:${text}`, { lang, dir: variant.dir, text });
+    }
+  }
+  if (sizes.size < 2) return content;
+  const placeholders = [...sizes.values()].map(({ lang, dir, text }) =>
+    `<span class="i18n-size" aria-hidden="true" inert lang="${lang}" dir="${dir}">${escHtml(text)}</span>`).join("");
+  return `<span class="i18n-slot">${content}${placeholders}</span>`;
+}
+
+function translatedInline(key, hideEmpty = false) {
+  const value = translations[config.lang].text[key] ?? "";
+  const hide = hideEmpty ? ` data-hide-empty${value ? "" : " hidden"}` : "";
+  return reserveTranslations(`<span data-i18n="${key}"${hide}>${escHtml(value)}</span>`, [key]);
+}
+
 function translatedText(tag, className, key) {
   if (!Object.values(translations).some((variant) => variant.text[key])) return "";
-  const value = translations[config.lang].text[key];
-  return `<${tag} class="${className}" data-i18n="${key}" data-hide-empty${value ? "" : " hidden"}>${escHtml(value)}</${tag}>`;
+  return `<${tag} class="${className}">${translatedInline(key, true)}</${tag}>`;
 }
 
 function buildPhotoHtml() {
@@ -276,7 +314,10 @@ function buildHeader() {
   const themedLogo = opts.darkMode && config.logo && config.logoDark;
   // Each sanitized SVG has its own document, so matching gradient/clip IDs in
   // the two variants cannot interfere with each other or with the card.
-  const logoImage = (svg, mode) => `<img class="brand-${mode}" src="data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}" alt="" />`;
+  const logoImage = (svg, mode) => {
+    const document = svg.replace(/^<svg\b/, '<svg xmlns="http://www.w3.org/2000/svg"');
+    return `<img class="brand-${mode}" src="data:image/svg+xml;base64,${Buffer.from(document).toString("base64")}" alt="" />`;
+  };
   const logo = config.logo
     ? `<a class="brand${themedLogo ? " brand-themed" : ""}" href="${escHtml(config.website || config.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escHtml(config.organization || config.name)}">${themedLogo ? logoImage(config.logo, "light") + logoImage(config.logoDark, "dark") : config.logo}</a>`
     : "<span></span>";
@@ -338,7 +379,7 @@ function buildContactInfo() {
       text: config.phone,
       label: "phone",
     });
-  if (config.website)
+  if (config.website && opts.showWebsite)
     entries.push({
       href: config.website,
       icon: ICONS.globe,
@@ -347,30 +388,39 @@ function buildContactInfo() {
       label: "website",
     });
 
-  if (!entries.length && !(opts.paper && contactQr)) return "";
+  for (const link of config.links.filter(link => link.placement === "contact")) {
+    const handle = link.iconName === "linkedin" ? linkedinHandle(link.url) : null;
+    entries.push({ href: link.url, icon: link.icon, text: handle || link.label, caption: handle ? link.label : null, aria: handle ? `${link.label}: ${handle}` : null, external: /^https?:/i.test(link.url) });
+  }
+
+  if (!entries.length && !qrByContacts) return "";
 
   const rows = entries.map((e, i) => {
     const delay = (0.35 + i * 0.07).toFixed(2);
     const rel = e.external
       ? ' target="_blank" rel="noopener noreferrer"'
       : "";
-    const text = opts.paper ? `<span class="contact-text"><span class="contact-label" data-i18n="${e.label}">${escHtml(labels[e.label])}</span><bdi>${escHtml(e.text)}</bdi></span>` : `<bdi>${escHtml(e.text)}</bdi>`;
-    return `        <a href="${escHtml(e.href)}"${rel} class="contact-row" style="animation-delay:${delay}s">${e.icon}${text}</a>`;
+    const caption = e.label ? `<span class="contact-label">${translatedInline(e.label)}</span>` : e.caption ? `<span class="contact-label">${escHtml(e.caption)}</span>` : "";
+    const text = opts.paper && caption ? `<span class="contact-text">${caption}<bdi>${escHtml(e.text)}</bdi></span>` : `<bdi>${escHtml(e.text)}</bdi>`;
+    return `        <a href="${escHtml(e.href)}"${rel}${e.aria ? ` aria-label="${escHtml(e.aria)}"` : ""} class="contact-row" style="animation-delay:${delay}s">${e.icon}${text}</a>`;
   });
 
   const info = `      <div class="contact-info">\n${rows.join("\n")}\n      </div>`;
-  if (!opts.paper || !contactQr) return entries.length ? info : "";
+  if (!qrByContacts) return entries.length ? info : "";
   return `      <div class="contact-block${entries.length ? "" : " contact-block-solo"}">
 ${entries.length ? info : ""}
-        <div class="contact-qr">${buildQrButton()}
-          ${translatedText("p", "qr-label", "qrLabel")}
+        <div class="contact-qr">${qrToggle ? buildQrCaption() : ""}
+          ${buildQrButton()}
+          ${buildQrControls()}
+          ${qrToggle ? "" : buildQrCaption()}
         </div>
       </div>`;
 }
 
 function buildLinksHtml() {
-  if (!config.links.length) return "";
-  const buttons = config.links.map((link, i) => {
+  const links = config.links.filter(link => link.placement !== "contact");
+  if (!links.length) return "";
+  const buttons = links.map((link, i) => {
     const delay = (0.55 + i * 0.07).toFixed(2);
     return `        <a href="${escHtml(link.url)}" target="_blank" rel="noopener noreferrer"
            class="link-btn" title="${escHtml(link.label)}" aria-label="${escHtml(link.label)}"
@@ -383,25 +433,44 @@ function buildQrButton() {
   return `<button type="button" class="qr-container" aria-label="${escHtml(labels.showQr)}" title="${escHtml(labels.enlargeQr)}" data-i18n-aria="showQr" data-i18n-title="enlargeQr">${qrSvg}</button>`;
 }
 
+function buildQrControls() {
+  if (!qrToggle) return "";
+  return `<div class="qr-mode-switch" role="group" aria-label="${escHtml(labels.qrMode)}" data-i18n-aria="qrMode" hidden>${["contact", "link"].map(mode => {
+    const key = mode === "contact" ? "qrContactMode" : "qrLinkMode";
+    const description = mode === "contact" ? "qrContactLabel" : "qrLinkLabel";
+    const icon = ICONS[mode === "contact" ? "contact" : "link"].replace("<svg ", '<svg aria-hidden="true" focusable="false" ');
+    return `<button type="button" data-qr-mode="${mode}" aria-pressed="${mode === qrModes.initial}" aria-label="${escHtml(labels[key])}" data-i18n-aria="${key}" title="${escHtml(labels[description])}" data-i18n-title="${description}">${icon}</button>`;
+  }).join("")}</div>`;
+}
+
+function buildQrCaption(className = "qr-label") {
+  if (!qrToggle) return translatedText("p", className, "qrLabel");
+  const caption = contactQr ? labels.qrContactLabel : labels.qrLinkLabel;
+  const content = `<span data-qr-caption aria-live="polite">${escHtml(caption)}</span>`;
+  return `<p class="${className}" data-qr-heading>${reserveTranslations(content, ["qrContactLabel", "qrLinkLabel"])}</p>`;
+}
+
 function buildQrSection() {
   if (!opts.qr && !opts.saveContact && !opts.share) return "";
   const parts = [];
-  if (opts.qr && !(opts.paper && contactQr)) {
+  if (opts.qr && !qrByContacts) {
     // Opens the full-screen copy in .qr-full
+    if (qrToggle) parts.push(buildQrCaption());
     parts.push(`        ${buildQrButton()}`);
-    parts.push(translatedText("p", "qr-label", "qrLabel"));
+    parts.push(buildQrControls());
+    if (!qrToggle) parts.push(buildQrCaption());
   }
 
   const actions = [];
   if (opts.saveContact) {
     actions.push(`          <a href="${vcardDataUri}" download="${escHtml(vcardFilename)}" class="action-btn save-btn">
-            ${ICONS.download} <span data-i18n="saveLabel">${escHtml(opts.saveLabel)}</span>
+            ${ICONS.download} ${translatedInline("saveLabel")}
           </a>`);
   }
   if (opts.share) {
     // Revealed by script only where navigator.share exists
-    actions.push(`          <button type="button" class="action-btn share-btn" hidden>
-            ${ICONS.share} <span data-i18n="shareLabel">${escHtml(opts.shareLabel)}</span>
+    actions.push(`          <button type="button" class="action-btn share-btn share-icon" aria-label="${escHtml(opts.shareLabel)}" data-i18n-aria="shareLabel" title="${escHtml(opts.shareLabel)}" data-i18n-title="shareLabel" hidden>
+            ${ICONS.share.replace("<svg ", '<svg aria-hidden="true" ')}
           </button>`);
   }
   if (actions.length)
@@ -414,10 +483,12 @@ function buildQrSection() {
 // for showing someone across a table: easier for any camera to read
 function buildQrDialog() {
   if (!opts.qr) return "";
-  return `  <dialog class="qr-full${opts.paper ? " paper-qr" : ""}" aria-label="${escHtml(`${labels.qrFor} ${config.name}`)}" data-i18n-aria="qrFor">
+  return `  <dialog class="qr-full${opts.paper ? " paper-qr" : ""}${qrToggle ? " qr-switchable" : ""}" aria-label="${escHtml(`${labels.qrFor} ${config.name}`)}" data-i18n-aria="qrFor">
     <button type="button" class="qr-full-close" aria-label="${escHtml(labels.close)}" data-i18n-aria="close">&times;</button>
+    ${qrToggle ? buildQrCaption("qr-full-caption") : ""}
     <div class="qr-full-code">${qrSvg}</div>
     <p class="qr-full-name">${escHtml(config.name)}</p>
+    ${buildQrControls()}
     <p class="qr-full-url">${escHtml(config.url.replace(/^https?:\/\//, ""))}</p>
   </dialog>`;
 }
@@ -449,13 +520,13 @@ const html = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 ${opts.indexable ? "" : `  <meta name="robots" content="${NO_INDEX}">`}
-  <title>${escHtml(config.name)}</title>
+  <title>${escHtml(pageTitle)}</title>
   <meta name="description" content="${escHtml(summary)}">
   <meta name="theme-color" content="${theme.page}"${opts.darkMode ? ` data-light="${appearance.light.page}" data-dark="${appearance.dark.page}"` : ""}>
 ${opts.darkMode ? `  <script>
 ${indent(read("appearance.js"), 4)}
   </script>` : ""}
-  <meta property="og:title" content="${escHtml(config.name)}">
+  <meta property="og:title" content="${escHtml(pageTitle)}">
   <meta property="og:description" content="${escHtml(summary)}">
   <meta property="og:url" content="${escHtml(config.url)}">
   <meta property="og:type" content="profile">
@@ -501,21 +572,24 @@ ${opts.paper ? translatedText("p", "paper-tagline", "tagline") : ""}
 ${buildNowHtml()}
 ${buildContactInfo()}
 
-${buildLinksHtml()}
+${opts.paper ? buildQrSection() : buildLinksHtml()}
 
-${buildQrSection()}
+${opts.paper ? buildLinksHtml() : buildQrSection()}
     </div>
 ${opts.paper ? `    <svg class="paper-wave${opts.animateWaves ? " paper-wave-animated" : ""}" viewBox="0 0 480 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="paper-wave-color"><stop stop-color="${theme.accent}"/><stop offset="1" stop-color="${theme.dark}"/></linearGradient></defs><path d="M0 30 C105 5 168 86 310 63 C395 49 437 26 480 0 V100 H0Z" fill="url(#paper-wave-color)"/></svg>` : ""}
   </main>
 ${bgDotsHtml}
 ${buildQrDialog()}
 ${config.languages.length > 1 ? `  <script type="application/json" id="card-locales">${scriptJson(translations)}</script>` : ""}
+${qrToggle ? `  <script type="application/json" id="card-qr">${scriptJson(qrModes)}</script>` : ""}
   <script>
 ${indent(String(withPhoto), 4)}
 
 ${indent(String(toVCardDataUri), 4)}
 
 ${config.languages.length > 1 ? indent(read("language.js"), 4) : ""}
+
+${qrToggle ? indent(read("qr-switch.js"), 4) : ""}
 
 ${indent(read("card.js"), 4)}
   </script>
@@ -664,7 +738,7 @@ for (const name of OUTPUTS) {
 
 console.log(`✓ Built ${OUT}/ for ${config.name}`);
 console.log(`  Files: ${written.join(", ")}`);
-console.log(`  QR encodes: ${contactQr ? "vCard contact (without photo)" : config.url}`);
+console.log(`  QR encodes: ${qrToggle ? "vCard contact and card URL (switchable)" : contactQr ? "vCard contact (without photo)" : config.url}`);
 console.log(
   `  Backgrounds: ${backgrounds.join(", ")}  Animate waves: ${opts.animateWaves ? "on" : "off"}  Glint: ${opts.glint ? "on" : "off"}` +
     `  Share: ${opts.share ? "on" : "off"}  PWA: ${opts.pwa ? "on" : "off"}`

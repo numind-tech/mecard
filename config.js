@@ -34,6 +34,8 @@ export const OPTIONS = {
   animateWaves: true,
   qr: true,
   qrContact: false,
+  qrToggle: false,
+  showWebsite: true,
   saveContact: true,
   share: true,
   pwa: true,
@@ -51,7 +53,7 @@ const RENAMED = { waves: "animateWaves" };
 
 const TEXT_KEYS = ["name", "title", "tagline", "organization", "department", "email", "phone", "website", "photo", "url", "lang"];
 const KEYS = [...TEXT_KEYS, "links", "theme", "backgrounds", "options", "now", "nameParts", "logo", "logoDark", "translations", "labels", "dir"];
-const LINK_KEYS = ["label", "url", "icon"];
+const LINK_KEYS = ["label", "url", "icon", "placement"];
 const NOW_KEYS = ["text", "until", "url"];
 const NAME_KEYS = ["given", "middle", "family", "prefix", "suffix"];
 
@@ -231,7 +233,12 @@ function loadLinks(raw, base, warn) {
     const url = webUrl(String(link.url), `${where}.url`, warn, LINK_PROTOCOLS);
     if (!link.label) warn(`${where} has no label, which screen readers announce — using the address`);
     const icon = loadIcon(link.icon, base, (msg) => warn(`${where}.icon: ${msg}`));
-    links.push({ label: String(link.label || hostOf(url)), url, ...icon });
+    let placement = link.placement ?? "button";
+    if (!["contact", "button"].includes(placement)) {
+      warn(`${where}.placement must be contact or button — using button`);
+      placement = "button";
+    }
+    links.push({ label: String(link.label || hostOf(url)), url, placement, ...icon });
   });
   return links;
 }

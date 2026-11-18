@@ -86,7 +86,7 @@ test("all configured languages share one HTML page, one portrait and localized c
     options: { pwa: false, paper: true },
     logo: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#575086"/></svg>',
     translations: {
-      fr: { title: "Directrice technique", tagline: "Des documents aux données" },
+      fr: { title: "Directrice technique", tagline: "Des documents aux données", department: "Recherche" },
       en: { title: "CTO", tagline: injection },
       de: { title: "Technische Leitung", labels: { saveLabel: "Kontakt speichern", digitalCard: "Visitenkarte" } },
       ja: { title: "技術責任者", labels: { saveLabel: "連絡先を保存" } },
@@ -108,6 +108,25 @@ test("all configured languages share one HTML page, one portrait and localized c
   assert.ok(!html.includes(injection));
   assert.equal(translations.ar.dir, "rtl");
   assert.equal(translations.ja.text.saveLabel, "連絡先を保存");
+  // Alternate translations reserve layout space but are never announced or
+  // updated by the language switch; only the active child has data-i18n.
+  const title = html.match(/class="sub-title">([\s\S]*?)<\/span>\s*<\/span>/)[1];
+  assert.match(title, /data-i18n="title" data-hide-empty>Directrice technique<\/span>/);
+  assert.match(html, /class="sub-org"><span class="i18n-slot"><span data-i18n="org" data-hide-empty>Recherche<\/span>/);
+  const sizes = [...html.matchAll(/<span class="i18n-size"([^>]*)>([\s\S]*?)<\/span>/g)];
+  assert.ok(sizes.length > 0);
+  for (const [, attributes] of sizes) {
+    assert.match(attributes, /aria-hidden="true" inert lang="[^"]+" dir="(?:ltr|rtl)"/);
+    assert.doesNotMatch(attributes, /data-i18n/);
+  }
+  assert.ok(sizes.some(([, attrs, text]) => attrs.includes('lang="ar" dir="rtl"') && text === 'مدير تقني'));
+  assert.ok(sizes.some(([, , text]) => text === '&lt;/script&gt;&lt;img src=x onerror=&quot;alert(1)&quot;&gt;'));
+  const share = html.match(/<button[^>]+class="action-btn share-btn share-icon"[^>]*>[\s\S]*?<\/button>/)[0];
+  assert.match(share, /aria-label="Partager" data-i18n-aria="shareLabel"/);
+  assert.match(share, /title="Partager" data-i18n-title="shareLabel" hidden/);
+  assert.match(share, /<svg aria-hidden="true"/);
+  assert.equal((share.match(/<circle /g) ?? []).length, 3);
+  assert.doesNotMatch(share, /<span/);
   assert.equal(parseVCard(vcardOf(html)).getFirstPropertyValue("title"), "Directrice technique");
   for (const [lang, text] of Object.entries(translations)) {
     assert.doesNotMatch(text.vcard, /PHOTO;/, `${lang} duplicates the portrait`);

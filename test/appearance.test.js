@@ -137,8 +137,11 @@ test('both layouts inline the control, translated name and early script, and opt
         const logos = [...html.matchAll(/<img class="brand-(light|dark)" src="data:image\/svg\+xml;base64,([^"]+)" alt=""/g)];
         assert.equal(logos.length, 2);
         const settings = loadConfig(config, assert.fail, undefined, { defaults });
-        assert.equal(Buffer.from(logos[0][2], 'base64').toString(), settings.logo);
-        assert.equal(Buffer.from(logos[1][2], 'base64').toString(), settings.logoDark);
+        for (const [index, expected] of [settings.logo, settings.logoDark].entries()) {
+          const svg = Buffer.from(logos[index][2], 'base64').toString();
+          assert.match(svg, /^<svg xmlns="http:\/\/www.w3.org\/2000\/svg"/);
+          assert.equal(svg.replace(' xmlns="http://www.w3.org/2000/svg"', ''), expected);
+        }
         assert.match(settings.logoDark, /fill="#abcdef"/);
       } else {
         assert.match(html, /class="brand"/);

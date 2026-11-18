@@ -12,12 +12,12 @@
   box-shadow: 0 24px 70px -24px rgba(55, 45, 85, .2), 0 2px 8px rgba(55, 45, 85, .03);
 }
 .paper::after, .paper .bg, .paper .photo-glow, .paper .photo-wrap::after { display: none; }
-.paper .content { padding: 30px 34px 100px; text-align: start; }
-.paper .card-header { margin-bottom: 32px; }
-.paper .language-switch { background: #f6f5f9; border-color: #eeecf3; }
+.paper .content { padding: 32px 34px 100px; text-align: start; }
+.paper .card-header { margin-bottom: 40px; }
+.paper .language-switch { background: transparent; }
 .paper .language-switch button { color: #666074; }
-.paper .language-switch button[aria-pressed="true"] { background: var(--dark); color: #fff; }
-.paper .language-picker select { background: #f6f5f9; border-color: #eeecf3; color: #595362; }
+.paper .language-switch button[aria-pressed="true"] { background: transparent; color: var(--dark); }
+.paper .language-picker select { background: transparent; color: #595362; }
 .paper :is(.action-btn, .language-switch button, .language-picker select, .brand, .qr-container):focus-visible { outline-color: var(--dark); }
 .paper .identity { display: flex; align-items: center; gap: 20px; }
 .paper .identity-text { min-width: 0; }
@@ -29,35 +29,42 @@
 .paper .sub-title { font-size: 14px; line-height: 1.45; font-weight: 500; color: #595362; }
 .paper .sub-org { font-size: 13px; font-weight: 700; color: var(--dark); }
 .paper-tagline { margin: 26px 0 22px; padding-top: 23px; border-top: 1px solid #eeecf2; color: #555064; font-size: 18px; font-weight: 500; line-height: 1.5; letter-spacing: -.015em; }
-.paper .contact-info { gap: 2px; margin: 0 0 20px; }
-.paper .contact-row { min-height: 56px; padding: 8px 10px; margin: 0 -10px; gap: 15px; border-radius: 10px; font-size: 15px; }
+.paper .contact-info { gap: 4px; margin: 0; }
+.paper .contact-row { min-height: 60px; padding: 10px; margin: 0 -10px; gap: 15px; border-radius: 10px; font-size: 15px; }
 .paper .contact-row svg { color: var(--dark); width: 20px; height: 20px; }
 .contact-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow-wrap: anywhere; }
 .contact-label { color: #736d7e; font-size: 11px; font-weight: 500; }
 .paper .contact-row:hover { color: var(--text); background: #f6f5f9; box-shadow: none; }
 .paper .contact-row:focus-visible { outline: 2px solid var(--dark); outline-offset: 2px; }
-.paper .links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.paper .link-btn { width: auto; height: auto; min-height: 46px; padding: 10px; gap: 10px; border-radius: 10px; border: 1px solid #e4e0ec; background: #fff; box-shadow: none; color: #4b445d; font-size: 13px; font-weight: 650; }
-.paper .link-btn svg { width: 19px; height: 19px; }
-.paper .link-btn:hover { background: #f6f5fa; border-color: #b0a6c6; color: var(--dark); transform: translateY(-1px); }
+.paper .links { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
+.paper .link-btn { width: auto; height: auto; min-height: 44px; padding: 8px 6px; gap: 10px; border-radius: 8px; border: 0; background: transparent; box-shadow: none; color: #595362; font-size: 14px; font-weight: 500; }
+.paper .link-btn svg { width: 18px; height: 18px; }
+.paper .link-btn:hover { background: #f6f5fa; color: var(--dark); transform: none; }
+.paper .link-btn:hover span { text-decoration: underline; text-underline-offset: 4px; }
 .paper .link-btn:focus-visible { outline: 2px solid var(--dark); outline-offset: 3px; }
-.paper .qr-section { display: grid; grid-template-columns: 72px 1fr; gap: 20px 16px; align-items: center; border: 0; margin-top: 18px; padding: 0; }
-.paper .actions { grid-row: 1; grid-column: 1 / -1; margin: 0; }
+.paper .qr-section { display: grid; grid-template-columns: 72px 1fr; gap: 20px 16px; align-items: center; border: 0; margin-top: 28px; padding: 0; }
+.paper .actions { grid-row: 1; grid-column: 1 / -1; margin: 0; flex-wrap: nowrap; gap: 8px; }
+.paper .save-btn { min-width: 0; }
 .paper .action-btn { justify-content: center; flex: 1; border-radius: 10px; border: 1px solid var(--dark); background: var(--dark); box-shadow: none; color: #fff; min-height: 48px; padding: 12px 16px; font-size: 14px; }
 .paper .action-btn:hover { background: #494174; transform: translateY(-1px); }
 .paper .share-btn { background: #fff; color: var(--dark); border-color: #e4e0ec; }
 .paper .share-btn:hover { background: #f6f5fa; border-color: #b0a6c6; }
 .paper .qr-container { grid-row: 2; grid-column: 1; width: 72px; height: 72px; padding: 6px; border: 1px solid #ece9f2; border-radius: 8px; background: #fff; box-shadow: none; }
 .paper .qr-label { grid-row: 2; grid-column: 2; max-width: 210px; margin: 0; color: #70687e; font-size: 12px; text-transform: none; letter-spacing: 0; line-height: 1.5; }
-.paper .contact-block { display: grid; grid-template-columns: minmax(0, 1fr) 136px; gap: 16px; align-items: center; margin-bottom: 20px; }
+.paper .contact-block { display: grid; grid-template-columns: minmax(0, 1fr) 136px; gap: 16px; align-items: center; }
 .paper .contact-block .contact-info { margin: 0; min-width: 0; }
-.paper .contact-block .contact-row { gap: 10px; }
+/* Preserve the gutter next to the QR. Trim margin and padding together so
+   the contact text keeps the same position and wrapping width. */
+.paper .contact-block .contact-row { gap: 10px; margin-inline-end: -4px; padding-inline-end: 4px; }
 .paper .contact-block .contact-row > svg { flex-shrink: 0; }
+.paper .contact-row > bdi { min-width: 0; overflow-wrap: anywhere; }
 .paper .contact-block-solo { display: block; }
-.paper .identity + :is(.contact-block, .contact-info) { margin-top: 24px; }
+.paper .identity + :is(.contact-block, .contact-info) { margin-top: 36px; }
 .paper .contact-qr { text-align: center; }
 .paper .contact-qr .qr-container { display: block; width: 136px; height: 136px; margin: 0 auto; padding: 0; overflow: hidden; }
 .paper .contact-qr .qr-label { max-width: 160px; margin: 8px auto 0; font-size: 11px; line-height: 1.4; }
+.paper .contact-qr .qr-label[data-qr-heading] { margin: 0 auto 8px; }
+.paper .qr-section > .qr-mode-switch { grid-column: 1 / -1; grid-row: 3; }
 .qr-full .qr-full-code [data-contact-qr] path[stroke] { stroke: #16161a; }
 .paper-wave { position: absolute; bottom: -1px; left: 0; width: 100%; height: 76px; pointer-events: none; }
 @media (prefers-reduced-motion: no-preference) {
@@ -73,8 +80,8 @@
 .paper-qr .qr-full-url { overflow-wrap: anywhere; max-width: 100%; }
 @media (max-width: 420px) {
   .paper-page { padding: 12px; }
-  .paper .content { padding: 24px 24px 94px; }
-  .paper .card-header { margin-bottom: 26px; }
+  .paper .content { padding: 28px 24px 94px; }
+  .paper .card-header { margin-bottom: 34px; }
   .paper .brand { width: 120px; }
   .paper .identity { gap: 16px; }
   .paper .photo-wrap, .paper .photo { width: 82px; height: 82px; }

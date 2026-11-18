@@ -60,7 +60,7 @@ export function buildVCard(config) {
   if (config.website) lines.push(`URL:${validateUrl(config.website, "website")}`);
 
   // Grouped URLs carry a label; iOS shows it, other apps fall back to "URL"
-  const labelled = config.links.map((l) => [l.label, l.url]);
+  const labelled = config.links.filter(l => l.url !== config.website).map((l) => [l.label, l.url]);
   if (config.url !== config.website) labelled.unshift([config.labels?.digitalCard ?? labelsFor(config.lang).digitalCard, config.url]);
   labelled.forEach(([label, url], i) => {
     lines.push(`item${i + 1}.URL:${validateUrl(url, "vCard URL", LINK_PROTOCOLS)}`, `item${i + 1}.X-ABLabel:${escText(label)}`);

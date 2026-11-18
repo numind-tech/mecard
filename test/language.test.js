@@ -8,6 +8,7 @@ import { contactQrGeometry } from "../contact-qr.js";
 
 const languageScript = readFileSync(new URL("../language.js", import.meta.url), "utf8");
 const cardScript = readFileSync(new URL("../card.js", import.meta.url), "utf8");
+const qrScript = readFileSync(new URL("../qr-switch.js", import.meta.url), "utf8");
 
 // A small DOM test double for the event-driven code, with real one-shot
 // listener semantics. Layout and native controls are checked in the browser.
@@ -26,18 +27,19 @@ class Element {
   setAttribute(key, value) { this.attributes[key] = String(value); }
   set innerHTML(_) { throw new Error("Translations must never be inserted as HTML"); }
   addEventListener(type, callback, options) { this.listeners.push({ type, callback, once: options?.once }); }
-  emit(type) {
+  closest(selector) { return selector === '.qr-mode-switch' ? this.group ?? null : null; }
+  emit(type, target = this) {
     for (const listener of [...this.listeners]) {
       if (listener.type !== type) continue;
       if (listener.once) this.listeners.splice(this.listeners.indexOf(listener), 1);
-      listener.callback({ target: this });
+      listener.callback({ target });
     }
   }
 }
 
 function variant(lang, title, tagline, dir = "ltr") {
   const department = lang === "ja" ? null : `${lang} team`;
-  const labels = { saveLabel: `Save ${lang}`, shareLabel: `Share ${lang}`, language: `Language ${lang}`, showQr: `QR ${lang}`, close: `Close ${lang}`, digitalCard: `Card ${lang}` };
+  const labels = { saveLabel: `Save ${lang}`, shareLabel: `Share ${lang}`, language: `Language ${lang}`, showQr: `QR ${lang}`, close: `Close ${lang}`, digitalCard: `Card ${lang}`, qrContactMode: `Save ${lang}`, qrLinkMode: `Share ${lang}`, qrContactLabel: `Contact ${lang}`, qrLinkLabel: `Link ${lang}` };
   const config = { name: "Test Person", url: "https://example.test/card", organization: "Test Org", links: [], lang, title, tagline, department, labels };
   return { dir, text: { ...labels, title, tagline, org: `${department ?? ""} Test Org` }, department, summary: `${title} — Test Org`, vcard: buildVCard(config) };
 }
@@ -49,7 +51,7 @@ const translations = {
   ar: variant("ar", "مدير تقني", "مستندات", "rtl"),
 };
 
-function browser({ values = translations, saved, blocked = false, dropdown = false, saveContact = true, preferred = [], browserLang, initial = "fr" } = {}) {
+function browser({ values = translations, saved, blocked = false, dropdown = false, saveContact = true, preferred = [], browserLang, initial = "fr", qrMode } = {}) {
   const data = new Element({}, JSON.stringify(values));
   const texts = Object.fromEntries(["title", "tagline", "org", "saveLabel", "shareLabel"].map(key => [key, new Element({ "data-i18n": key, "data-hide-empty": "" })]));
   const qr = new Element({ "data-i18n-aria": "showQr" });
@@ -59,6 +61,32 @@ function browser({ values = translations, saved, blocked = false, dropdown = fal
     svg.querySelector = selector => selector === '[data-qr-modules]' ? svg.path : null;
     return svg;
   });
+  const qrModes = qrMode ? {
+    initial: qrMode, defaultLang: initial, link: contactQrGeometry('https://example.test/card'),
+    variants: Object.fromEntries(Object.entries(values).map(([lang, value]) => [lang, {
+      contact: contactQrGeometry(value.vcard), contactLabel: `Contact ${lang}`, linkLabel: `Link ${lang}`,
+    }])),
+  } : null;
+  const qrData = qrModes && new Element({}, JSON.stringify(qrModes));
+  const qrCaptions = [new Element(), new Element()];
+  const qrGroups = [new Element(), new Element()];
+  const modeButtons = qrGroups.flatMap(group => ['contact', 'link'].map(mode => {
+    const button = new Element({
+      'data-qr-mode': mode,
+      'data-i18n-aria': mode === 'contact' ? 'qrContactMode' : 'qrLinkMode',
+      'data-i18n-title': mode === 'contact' ? 'qrContactLabel' : 'qrLinkLabel',
+    });
+    button.group = group;
+    return button;
+  }));
+  const qrTrigger = qrMode ? new Element() : null;
+  const qrDialog = qrMode ? new Element() : null;
+  if (qrDialog) {
+    qrDialog.open = false;
+    qrDialog.showModal = () => { qrDialog.open = true; };
+    qrDialog.close = () => { qrDialog.open = false; qrDialog.emit('close'); };
+  }
+  const themeMeta = { content: '#ffffff' };
   const control = new Element({ "data-i18n-aria": "language" });
   control.hidden = true;
   const buttons = dropdown ? [] : Object.keys(values).map(lang => new Element({ "data-language": lang }));
@@ -71,35 +99,41 @@ function browser({ values = translations, saved, blocked = false, dropdown = fal
   const state = new Map(saved === undefined ? [] : [["mecard-language:/card", saved]]);
   const document = {
     documentElement: { lang: initial, dir: "ltr" },
-    getElementById: id => id === "card-locales" ? data : null,
+    getElementById: id => id === "card-locales" ? data : id === 'card-qr' ? qrData : null,
     querySelector: selector => ({
       "[data-language-select]": select, ".save-btn": save, "img.photo": img,
       'script[type="application/ld+json"]': schema, ".card": card,
+      '.qr-container': qrTrigger, '.qr-full': qrDialog, 'meta[name="theme-color"]': themeMeta,
     })[selector] ?? null,
     querySelectorAll: selector => ({
       "[data-language]": buttons,
       "[data-contact-qr]": qrCodes,
+      '[data-qr-mode]': modeButtons, '[data-qr-caption]': qrCaptions, '.qr-mode-switch': qrGroups,
       "[data-i18n]": Object.values(texts),
-      "[data-i18n-aria]": [qr, control],
-      "[data-i18n-title]": [],
+      "[data-i18n-aria]": [qr, control, ...modeButtons],
+      "[data-i18n-title]": modeButtons,
       'meta[name="description"], meta[property="og:description"]': metas,
       ".language-switch, .language-picker": [control],
     })[selector] ?? [],
   };
   const events = [];
+  const listeners = new Map();
   const context = {
     document, location: Object.freeze({ pathname: "/card" }),
     localStorage: {
       getItem: key => { if (blocked) throw new Error("Storage blocked"); return state.get(key); },
       setItem: (key, value) => { if (blocked) throw new Error("Storage blocked"); state.set(key, value); },
     },
-    Event, dispatchEvent: event => events.push(event.type),
+    Event,
+    addEventListener: (type, callback) => listeners.set(type, callback),
+    dispatchEvent: event => { events.push(event.type); listeners.get(event.type)?.(event); },
     navigator: { languages: preferred, language: browserLang }, matchMedia: () => ({ matches: true }),
     TextDecoder, Uint8Array, atob, withPhoto, toVCardDataUri,
   };
   runInNewContext(languageScript, context);
+  runInNewContext(qrScript, context);
   runInNewContext(cardScript, context);
-  return { document, texts, qr, qrCodes, control, buttons, select, save, schema, metas, state, events };
+  return { document, texts, qr, qrCodes, control, buttons, select, save, schema, metas, state, events, qrModes, qrCaptions, qrGroups, modeButtons, qrTrigger, qrDialog };
 }
 
 const contact = save => new ICAL.Component(ICAL.parse(Buffer.from(save.href.split(",")[1], "base64").toString("utf8")));
@@ -209,4 +243,46 @@ test("contact QR follows browser language and manual selection even without cont
     }
   }
   assert.notEqual(values.en.qr.path, values.fr.qr.path);
+});
+
+test('QR mode stays synchronized across language changes, enlargement and dialog controls', () => {
+  const page = browser({ qrMode: 'contact', preferred: ['en-US'], saveContact: false });
+  const assertMode = (mode, lang) => {
+    const geometry = mode === 'contact' ? page.qrModes.variants[lang].contact : page.qrModes.link;
+    for (const svg of page.qrCodes) {
+      assert.equal(svg.getAttribute('viewBox'), geometry.viewBox);
+      assert.equal(svg.path.getAttribute('d'), geometry.path);
+    }
+    for (const caption of page.qrCaptions) assert.equal(caption.textContent, `${mode === 'contact' ? 'Contact' : 'Link'} ${lang}`);
+    for (const button of page.modeButtons) {
+      assert.equal(button.getAttribute('aria-pressed'), String(button.dataset.qrMode === mode));
+      assert.equal(button.getAttribute('aria-label'), `${button.dataset.qrMode === 'contact' ? 'Save' : 'Share'} ${lang}`);
+      assert.equal(button.getAttribute('title'), `${button.dataset.qrMode === 'contact' ? 'Contact' : 'Link'} ${lang}`);
+    }
+  };
+  assertMode('contact', 'en');
+  assert.ok(page.qrGroups.every(group => !group.hidden));
+  page.modeButtons[1].emit('click');
+  assertMode('link', 'en');
+  page.qrTrigger.emit('click');
+  assert.equal(page.qrDialog.open, true);
+  page.buttons[0].emit('click');
+  assertMode('link', 'fr');
+  page.modeButtons[2].emit('click');
+  page.qrDialog.emit('click', page.modeButtons[2]);
+  assert.equal(page.qrDialog.open, true, 'switching QR in the dialog must not close it');
+  assertMode('contact', 'fr');
+  page.qrDialog.emit('click');
+  assert.equal(page.qrDialog.open, false);
+  assertMode('contact', 'fr');
+});
+
+test('QR mode supports a single language, URL first and unavailable storage', () => {
+  const page = browser({ qrMode: 'link', blocked: true, values: { fr: translations.fr } });
+  assert.equal(page.qrCodes[0].path.getAttribute('d'), page.qrModes.link.path);
+  page.modeButtons[0].emit('click');
+  assert.equal(page.qrCodes[0].path.getAttribute('d'), page.qrModes.variants.fr.contact.path);
+  page.modeButtons[1].setAttribute('data-qr-mode', 'constructor');
+  page.modeButtons[1].emit('click');
+  assert.equal(page.qrCodes[0].path.getAttribute('d'), page.qrModes.variants.fr.contact.path);
 });

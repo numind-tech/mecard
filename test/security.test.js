@@ -8,10 +8,21 @@ import { loadConfig, loadIcon } from "../config.js";
 import { cleanSvg } from "../svg.js";
 import { ICONS } from "../icons.js";
 import { buildVCard } from "../vcard.js";
+import { linkedinHandle } from "../urls.js";
 
 const dir = mkdtempSync(join(tmpdir(), "mecard-security-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
 const basic = { name: "Test User", url: "https://example.org/card", links: [] };
+
+test("LinkedIn display handles ignore URL queries and do not mistake other domains for profiles", () => {
+  assert.equal(linkedinHandle('https://www.linkedin.com/in/example-person/?ref=card#about'), 'example-person');
+  assert.equal(linkedinHandle('https://fr.linkedin.com/in/%C3%A9lodie'), 'élodie');
+  assert.equal(linkedinHandle('https://www.linkedin.com/'), null);
+  assert.equal(linkedinHandle('https://linkedin.com.example.test/in/name'), null);
+  assert.equal(linkedinHandle('https://notlinkedin.com/in/name'), null);
+  assert.equal(linkedinHandle('https://linkedin.com/in/%ZZ'), '%ZZ');
+  assert.equal(linkedinHandle('https://linkedin.com/in/%0Aname'), '%0Aname');
+});
 
 function config(values) {
   const file = join(dir, "config.json");

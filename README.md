@@ -8,11 +8,11 @@ host. Card data and branding can live in a separate private repository.
 - Any number of languages, selected from browser preferences or manually.
 - Paper and illustrated layouts.
 - Light and dark themes, including separate brand logo variants.
-- Contact downloads, native sharing, and contact QR codes.
+- Contact downloads, native sharing, and one QR for a contact or its URL.
 - One card or a whole site, with shared defaults and a URL per person.
 
 Photos, logos, QR codes, translations and contact data are embedded in
-the HTML. Switching language or appearance does not reload the
+the HTML. Switching language, appearance or QR mode does not reload the
 page or fetch assets from another site.
 
 ## Setup
@@ -97,7 +97,7 @@ repository and its deployment environment.
 | `name` | Required |
 | `title` | Role or job title |
 | `tagline` | Short introduction, also included as a note in the contact |
-| `organization` | |
+| `organization` | Displayed on the card and alongside the name in its page title |
 | `department` | Joined to `organization` with a `·` |
 | `lang` | Fallback language when browser preferences do not match. Defaults to the first entry in `translations`, or `en` without translations |
 | `dir` | Text direction: `ltr` by default, or `rtl`; can also be set per translation |
@@ -127,12 +127,15 @@ On first visit, the page chooses a language from the browser's preferences, in p
 
 Language tags are validated and normalized, including regional tags. Set `dir: rtl` within a translation for right-to-left text; the default is `ltr`.
 
+Translated text reserves the space needed by every configured language at the current screen width, so switching languages does not move the rest of the card, including on mobile. Invisible, inert text handles sizing without duplicating assets or measuring the page in JavaScript. An explicitly empty translation stays blank while retaining its space.
+
 French and English interface defaults are included. For any other language, provide translated `labels`; omitted labels fall back to English. All interface labels can be configured:
 
 | Keys in `labels` | Purpose |
 |---|---|
 | `saveLabel`, `shareLabel`, `qrLabel` | Contact button, share button and QR caption |
 | `showQr`, `enlargeQr`, `qrFor`, `close` | QR button, tooltip, dialog title prefix and close button |
+| `qrMode`, `qrContactMode`, `qrLinkMode`, `qrContactLabel`, `qrLinkLabel` | QR selector's accessible names, captions and icon tooltips |
 | `language`, `background` | Language selector and background navigation |
 | `darkMode` | Accessible name of the dark mode toggle |
 | `email`, `phone`, `website` | Contact field labels |
@@ -150,9 +153,13 @@ Once `until` has passed, the build leaves the line out, and a card built earlier
 
 Icon buttons below the contact details. Set `links` to a list of entries with `label`, `url` and `icon`.
 
+Set a link's `placement: contact` to show it after the contact rows instead of as a button. The default is `button`. To show the main website as a labelled button, add it to `links` and set `options.showWebsite: false`; the website remains in the vCard, without duplication. Custom SVG pictograms work in both positions.
+
+A contact row using the `linkedin` icon and a LinkedIn URL displays the profile handle (the final URL path component) beneath its small label. The original label and URL remain in the exported contact.
+
 Available icons:
 
-`scholar` `orcid` `arxiv` `inspire` `researchgate` `file` `github` `linkedin` `twitter` `bluesky` `mastodon` `instagram` `youtube` `globe` `mail` `phone` `calendar` `link` `download` `share`
+`scholar` `orcid` `arxiv` `inspire` `researchgate` `file` `github` `linkedin` `twitter` `bluesky` `mastodon` `instagram` `youtube` `globe` `mail` `phone` `calendar` `link` `contact` `download` `share`
 
 `icon` can also be a path to an `.svg` file of your own; give it a `viewBox` and use `currentColor` so it takes the button's colour. An unknown name warns and falls back to `link`.
 
@@ -163,6 +170,8 @@ Custom SVGs are parsed as XML and limited to static shapes, groups, gradients, m
 The default illustrated layout uses the configured backgrounds. Set
 `options.paper: true` for a paper card with labelled contact rows, visible
 link names and an animated footer wave.
+
+Contact hover backgrounds leave space before the QR.
 
 #### Theme colours
 
@@ -201,6 +210,8 @@ The `options` mapping accepts these settings:
 | `animateWaves` | `true` | Animate the wave boundaries, including the paper layout's footer; set to `false` for a still wave |
 | `qr` | `true` | Display the QR code |
 | `qrContact` | `false` | Encode the photo-free vCard in the QR; in the paper layout, place it beside the contact details |
+| `qrToggle` | `false` | Switch one QR between contact and card URL with icon controls; `qrContact` chooses the initial mode |
+| `showWebsite` | `true` | Show the website among contact rows; does not remove it from the exported contact |
 | `saveContact` | `true` | Offer contact download |
 | `share` | `true` | Offer sharing where supported |
 | `pwa` | `true` | Installable card with offline support |
@@ -230,6 +241,8 @@ preview. The page requests a
 when supported and permitted by the browser. Contact QR codes contain
 the details from the last build and must be regenerated after a change.
 
+With `options.qrToggle: true`, one QR switches between the vCard and the card URL. Both modes are generated and embedded at build time. The selection stays synchronized with the enlarged view and survives language changes; a reload returns to the configured initial mode. The mode controls are hidden without JavaScript and the initial QR remains scannable. Translate the selector with `labels.qrMode`, `qrContactMode`, `qrLinkMode`, and its captions with `qrContactLabel` and `qrLinkLabel`. Setting `qr: false` hides the QR and selector completely.
+
 ### Download and native sharing
 
 **Save contact** provides a vCard 3.0 `.vcf` file for contact apps. The
@@ -239,7 +252,8 @@ adds the embedded portrait; the contact QR always omits it. The tagline
 becomes a note, and links are exported with their labels for apps that
 support them.
 
-The **Share** button opens the system share sheet for the card URL. It is shown only when the
+The **share icon** next to the save action opens the system share sheet
+for the card URL. It is shown only when the
 [Web Share API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Share_API)
 is available, which depends on the browser and a secure context.
 
@@ -262,7 +276,8 @@ uses an app window. The build also supplies maskable
 icons for launchers. Installation depends on browser support and
 [HTTPS or a local development server](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
 
-**Metadata**: the HTML includes Open Graph fields and schema.org
+**Metadata**: the page title includes the person's name and organization
+when supplied. The HTML also includes Open Graph fields and schema.org
 `Person` data with profile links listed as `sameAs`. This metadata does
 not override the default indexing restrictions.
 
@@ -270,7 +285,7 @@ not override the default indexing restrictions.
 
 `build.js` assembles one card; `build-site.js` builds a collection from
 separate data. Layout lives in `card.css` and `paper.css`. Page behavior
-lives in `card.js`, `language.js`, `appearance.js`,
+lives in `card.js`, `language.js`, `qr-switch.js` and `appearance.js`,
 all embedded in the generated HTML. `appearance.css` and
 `appearance-theme.js` provide the palettes; `locales.js`, `backgrounds.js`
 and `icons.js` supply interface text and artwork. `npm run dev` rebuilds on source or data changes.

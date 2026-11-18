@@ -5,6 +5,8 @@ const EN = {
   close: "Close", qrFor: "QR code for", language: "Language", darkMode: "Dark mode",
   background: "Card background", digitalCard: "Digital card",
   email: "Email", phone: "Phone", website: "Website",
+  qrMode: "QR code content", qrContactMode: "Save", qrLinkMode: "Share",
+  qrContactLabel: "Save contact", qrLinkLabel: "Share this card",
 };
 const FR = {
   qrLabel: "Scanner pour me contacter", saveLabel: "Enregistrer le contact", shareLabel: "Partager",
@@ -12,6 +14,8 @@ const FR = {
   close: "Fermer", qrFor: "QR code de", language: "Langue", darkMode: "Mode sombre",
   background: "Fond de la carte", digitalCard: "Carte de visite",
   email: "Mél", phone: "Téléphone", website: "Site web",
+  qrMode: "Contenu du QR code", qrContactMode: "Contact", qrLinkMode: "Lien",
+  qrContactLabel: "Ajouter le contact", qrLinkLabel: "Partager la fiche",
 };
 
 export const labelsFor = (lang = "en") => /^fr(?:-|$)/i.test(lang) ? FR : EN;
