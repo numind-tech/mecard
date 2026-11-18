@@ -18,6 +18,7 @@
     "ipaddr.js": "2.5.0",
     "qrcode": "^1.5.4",
     "saxes": "6.0.0",
+    "sharp": "0.35.5",
     "yaml": "^2.7.0"
   },
   "devDependencies": {

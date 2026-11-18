@@ -1,7 +1,7 @@
 # mecard
 
 Generate digital business cards from YAML. Each card has one HTML page
-for all its languages and optional PWA files.
+for all its languages, a portrait favicon, and optional PWA files.
 Run the generator locally or in CI, then publish the output on a static
 host. Card data and branding can live in a separate private repository.
 
@@ -10,6 +10,7 @@ host. Card data and branding can live in a separate private repository.
 - Light and dark themes, including separate brand logo variants.
 - Contact downloads, native sharing, and one QR for a contact or its URL.
 - One card or a whole site, with shared defaults and a URL per person.
+- Portrait favicons, optional offline support, and no indexing by default.
 
 Photos, logos, QR codes, translations and contact data are embedded in
 the HTML. Switching language, appearance or QR mode does not reload the
@@ -28,7 +29,7 @@ Create or edit `config.yaml` with the required `name` and `url`, then add contac
 
 Set `url` to the card's hosting address. URL QR mode and native sharing
 use that destination. The default build includes PWA files; set
-`options.pwa: false` for just `index.html`.
+`options.pwa: false` for just `index.html` and `favicon.png`.
 
 ```bash
 npm run dev               # live preview at http://127.0.0.1:3000
@@ -52,7 +53,7 @@ npm run build:site -- \
 ```
 
 Publish the complete `dist/site/` directory. It contains each card's
-HTML and optional PWA assets, a 404 page, and hosting rules.
+HTML, favicon and optional PWA assets, a 404 page, and hosting rules.
 Rebuilding replaces the site only after every card succeeds and removes
 cards no longer listed. A sibling `dist/site.mecard.json` records output
 ownership; keep it locally and do not upload it. Existing directories
@@ -121,7 +122,7 @@ Contact apps file the name by its last word. For compound names, specify `namePa
 
 Add as many language tags as you need under `translations`. Each entry can define `title`, `tagline`, `department`, `labels` and `dir`. All languages, including the initial one, use the same structure. Shared identity, contact details, links, logo, portrait and layout stay at the top level. Top-level editorial text remains a fallback for omitted translations; an empty string hides that text in a particular language.
 
-`npm run build` writes a single `dist/index.html`. Only text and photo-free contact data vary; the DOM, images, SVGs and styles are shared. The selector updates the current page, including accessibility labels, metadata and the contact download. Two languages use toggle buttons; three or more use a dropdown. Selection is remembered per page when browser storage is available, and switching still works when it is blocked or the file is opened locally.
+`npm run build` writes a single multilingual `dist/index.html`, accompanied by `favicon.png`. Only text and photo-free contact data vary; the DOM, images, SVGs and styles are shared. The selector updates the current page, including accessibility labels, metadata and the contact download. Two languages use toggle buttons; three or more use a dropdown. Selection is remembered per page when browser storage is available, and switching still works when it is blocked or the file is opened locally.
 
 On first visit, the page chooses a language from the browser's preferences, in priority order. Exact tags take precedence over broader language/script matches: `fr-CA` can use `fr`, and `zh-Hant-TW` can use `zh-Hant`. A remembered manual selection takes precedence; automatic choices are not saved. If none match, `lang` is the fallback, or the first configured translation if it is omitted. `--lang <tag>` changes that fallback while keeping every language in the same page.
 
@@ -261,7 +262,7 @@ is available, which depends on the browser and a secure context.
 
 | Build | Files to publish |
 |---|---|
-| One card, `pwa: false` | `index.html` |
+| One card, `pwa: false` | `index.html` and `favicon.png` |
 | One card, `pwa: true` (default) | The same files, plus `manifest.webmanifest`, `sw.js`, a portrait or initials icon, and maskable PNG icons |
 | Site | Each card's files in its slug directory, `404.html`, and `_headers` / `_redirects` when applicable |
 
@@ -269,6 +270,8 @@ Single-card builds default to `dist/`; site builds default to
 `dist/site/`. Keep each output directory together when copying or
 publishing it. The sibling site ownership marker stays outside the
 published directory.
+
+**Favicon**: every build emits a small 64×64 PNG thumbnail of the portrait, with a top-centred crop, or initials when no photo is provided. It works independently of PWA mode. Upload `favicon.png` alongside `index.html`; the versioned icon URL changes when the image changes. Photos are decoded with a 16-megapixel limit; a decoding failure falls back to initials (or fails with `--strict`).
 
 **PWA**: the manifest and service worker support installation and offline
 reopening after the page has been loaded and cached. The installed card
@@ -288,7 +291,8 @@ separate data. Layout lives in `card.css` and `paper.css`. Page behavior
 lives in `card.js`, `language.js`, `qr-switch.js` and `appearance.js`,
 all embedded in the generated HTML. `appearance.css` and
 `appearance-theme.js` provide the palettes; `locales.js`, `backgrounds.js`
-and `icons.js` supply interface text and artwork. `npm run dev` rebuilds on source or data changes.
+and `icons.js` supply interface text and artwork. `favicon.js` creates
+the portrait thumbnail. `npm run dev` rebuilds on source or data changes.
 
 ## License
 

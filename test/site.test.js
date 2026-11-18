@@ -44,7 +44,7 @@ test("build a complete bilingual site from a separate data directory and shared 
   assert.ok(!existsSync(join(f.out, "robots.txt")), "crawlers must be allowed to read noindex");
   assert.equal(readFileSync(join(f.out, "_redirects"), "utf8"), "/ https://example.test/about 302\n");
   for (const slug of ["first", "second"]) {
-    assert.deepEqual(readdirSync(join(f.out, slug)), ["index.html"]);
+    assert.deepEqual(readdirSync(join(f.out, slug)), ["favicon.png", "index.html"]);
     const html = readFileSync(join(f.out, slug, "index.html"), "utf8");
     assert.match(html, new RegExp(`https://cards.example.test/${slug}`));
     assert.match(html, /--dark: #123456/);

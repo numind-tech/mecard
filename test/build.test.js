@@ -94,7 +94,7 @@ test("all configured languages share one HTML page, one portrait and localized c
     },
   }), "--strict");
   assert.equal(code, 0, stderr);
-  assert.deepEqual(readdirSync(out), ["index.html"]);
+  assert.deepEqual(readdirSync(out), ["favicon.png", "index.html"]);
   assert.match(html, /<html lang="fr" dir="ltr">/);
   assert.match(html, /<select data-language-select>/);
   assert.doesNotMatch(html, /href="[^\"]*\/en\/index\.html"/);
@@ -142,7 +142,7 @@ test("--lang sets the initial language without discarding the other translations
     translations: { fr: { title: "Direction" }, en: { title: "Director" } },
   }), "--strict", "--lang", "en");
   assert.equal(code, 0, stderr);
-  assert.deepEqual(readdirSync(out), ["index.html"]);
+  assert.deepEqual(readdirSync(out), ["favicon.png", "index.html"]);
   assert.match(html, /<html lang="en"/);
   assert.match(html, /data-language="fr"[^>]*aria-pressed="false"/);
   assert.match(html, /data-language="en"[^>]*aria-pressed="true"/);
@@ -421,7 +421,7 @@ function worker(source, scope, store) {
 }
 
 test("service workers preserve caches of other applications and other cards", async () => {
-  const { code, stderr, out } = await build(BASIC);
+  const { code, stderr, out, html } = await build(BASIC);
   assert.equal(code, 0, stderr);
   const source = readFileSync(join(out, "sw.js"), "utf-8");
   const a = "https://example.org/card-a/", b = `${a}-nested/`;
@@ -446,6 +446,8 @@ test("service workers preserve caches of other applications and other cards", as
   assert.equal(await first.dispatch("fetch", { method: "GET", mode: "cors", url }), "network response");
   first.offline();
   assert.equal(await first.dispatch("fetch", { method: "GET", mode: "navigate", url: a }), `${a}:index.html`);
+  const faviconHref = html.match(/<link rel="icon" href="([^"]+)"/)[1];
+  assert.equal(await first.dispatch("fetch", { method: "GET", mode: "no-cors", url: new URL(faviconHref, a).href }), `${a}:${faviconHref}`);
 });
 
 test("turning PWA off clears the old PWA files", async () => {
@@ -456,13 +458,19 @@ test("turning PWA off clears the old PWA files", async () => {
   for (const file of ["sw.js", "manifest.webmanifest", "icon.jpg"]) {
     assert.ok(!existsSync(join(first.out, file)), `${file} left behind`);
   }
+  const png = readFileSync(join(first.out, "favicon.png"));
+  assert.equal(png.readUInt32BE(0), 0x89504e47);
+  assert.equal(`${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`, '64x64');
+  const html = readFileSync(join(first.out, "index.html"), "utf8");
+  assert.match(html, /<link rel="icon" href="favicon.png\?v=[a-f0-9]{12}" type="image\/png" sizes="64x64">/);
 });
 
 test("without a photo, the initials become the icon", async () => {
   const { html, out } = await build(BASIC);
   assert.match(html, /<div class="photo photo-initials">TP<\/div>/);
   assert.match(readFileSync(join(out, "icon.svg"), "utf-8"), />TP<\/text>/);
-  assert.match(html, /<link rel="icon" href="icon.svg" type="image\/svg\+xml">/);
+  assert.match(html, /<link rel="icon" href="favicon.png\?v=[a-f0-9]{12}" type="image\/png" sizes="64x64">/);
+  assert.ok(existsSync(join(out, "favicon.png")));
   assert.match(readFileSync(join(out, "manifest.webmanifest"), "utf-8"), /"src": "icon.svg"/);
   assert.ok(existsSync(join(out, "icon-maskable-512.png")));
 });

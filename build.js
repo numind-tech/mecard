@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Build the card into one self-contained page (plus PWA files).
+// Build the card into one page, a favicon, and optional PWA files.
 //   node build.js [--config config.yaml] [--out dist] [--strict]
 // For a live preview that rebuilds on save, use `npm run dev`.
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
@@ -16,6 +16,7 @@ import { downloadPhoto } from "./photo.js";
 import { contactQrGeometry, contactQrSvg } from "./contact-qr.js";
 import { appearanceTheme } from "./appearance-theme.js";
 import { linkedinHandle } from "./urls.js";
+import { FAVICON_SIZE, photoFavicon } from "./favicon.js";
 
 // ── Arguments ────────────────────────────────────────────────
 let args;
@@ -78,6 +79,8 @@ const indent = (text, n) => text.replace(/^(?=.)/gm, " ".repeat(n));
 // One line about the person, for search results, link previews and shares
 const summary = [config.title, config.organization].filter(Boolean).join(" — ");
 const pageTitle = [config.name, config.organization].filter(Boolean).join(" — ");
+const ICON_FONT = "-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif";
+const toPng = (svg, size) => new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng();
 
 // ── Photo ────────────────────────────────────────────────────
 const IMAGE_TYPES = {
@@ -121,7 +124,7 @@ function imageSize(buf) {
 }
 
 // A web address is downloaded now, so the page, vCard and icons all
-// carry the photo and the card makes no requests of its own
+// carry the photo without contacting its original host at runtime
 async function loadPhoto(spec) {
   if (!spec) return null;
   let data;
@@ -514,6 +517,9 @@ ${backgrounds
     : "";
 
 // ── Full HTML ────────────────────────────────────────────────
+const favicon = await buildFavicon();
+const faviconVersion = createHash("sha256").update(favicon).digest("hex").slice(0, 12);
+const faviconHref = `favicon.png?v=${faviconVersion}`;
 const html = `<!DOCTYPE html>
 <html lang="${escHtml(config.lang)}" dir="${config.dir}">
 <head>
@@ -521,6 +527,7 @@ const html = `<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 ${opts.indexable ? "" : `  <meta name="robots" content="${NO_INDEX}">`}
   <title>${escHtml(pageTitle)}</title>
+  <link rel="icon" href="${faviconHref}" type="image/png" sizes="${FAVICON_SIZE}x${FAVICON_SIZE}">
   <meta name="description" content="${escHtml(summary)}">
   <meta name="theme-color" content="${theme.page}"${opts.darkMode ? ` data-light="${appearance.light.page}" data-dark="${appearance.dark.page}"` : ""}>
 ${opts.darkMode ? `  <script>
@@ -540,7 +547,6 @@ ${
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="${escHtml(config.name)}">
   <link rel="apple-touch-icon" href="${appIcon.name}">
-  <link rel="icon" href="${appIcon.name}" type="${appIcon.type}">
 `
     : ""
 }
@@ -596,8 +602,17 @@ ${indent(read("card.js"), 4)}
 </body>
 </html>`;
 
-// ── PWA assets ───────────────────────────────────────────────
-const ICON_FONT = "-apple-system, BlinkMacSystemFont, Segoe UI, system-ui, sans-serif";
+// ── Icon and PWA assets ──────────────────────────────────────
+async function buildFavicon() {
+  if (photo) {
+    try {
+      return await photoFavicon(photo.data);
+    } catch (err) {
+      warn(`couldn't create photo favicon (${err.message}) — using initials`);
+    }
+  }
+  return toPng(buildInitialsSvg(), FAVICON_SIZE);
+}
 
 function buildInitialsSvg() {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
@@ -639,8 +654,6 @@ function buildMaskableSvg() {
   <circle cx="${C}" cy="${C}" r="${R + 1}" fill="none" stroke="#fff" stroke-opacity=".14" stroke-width="2"/>
 </svg>`;
 }
-
-const toPng = (svg, size) => new Resvg(svg, { fitTo: { mode: "width", value: size } }).render().asPng();
 
 function buildManifest() {
   const icons = [
@@ -714,6 +727,7 @@ function emit(name, data) {
 }
 
 emit("index.html", html);
+emit("favicon.png", favicon);
 
 if (opts.pwa) {
   emit(appIcon.name, photo ? photo.data : buildInitialsSvg());
@@ -722,13 +736,13 @@ if (opts.pwa) {
   emit("manifest.webmanifest", buildManifest());
   // Version the cache off the page content so a rebuild invalidates it
   const version = createHash("sha256").update(html).digest("hex").slice(0, 12);
-  emit("sw.js", buildServiceWorker(["index.html", "manifest.webmanifest", appIcon.name], version));
+  emit("sw.js", buildServiceWorker(["index.html", faviconHref, "manifest.webmanifest", appIcon.name], version));
 }
 
 // Remove what an earlier build wrote and this one didn't. Only names a
 // build can produce are touched, so --out can point anywhere safely.
 const OUTPUTS = [
-  "index.html", "icon.svg", "manifest.webmanifest", "sw.js",
+  "index.html", "favicon.png", "icon.svg", "manifest.webmanifest", "sw.js",
   ...Object.values(IMAGE_TYPES).map((t) => `icon.${t.ext}`),
   ...MASKABLE.map((m) => m.name),
 ];
