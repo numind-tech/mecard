@@ -172,7 +172,8 @@ test("a complete synthetic profile builds cleanly under --strict", async () => {
 
 test("Android gets maskable PNG icons at their stated sizes", async () => {
   const { out } = await build(PROFILE);
-  const { icons } = JSON.parse(readFileSync(join(out, "manifest.webmanifest"), "utf-8"));
+  const { icons, orientation } = JSON.parse(readFileSync(join(out, "manifest.webmanifest"), "utf-8"));
+  assert.equal(orientation, "any", "installed cards must allow rotation");
   const maskable = icons.filter((icon) => icon.purpose === "maskable");
   assert.deepEqual(maskable.map((icon) => icon.sizes), ["192x192", "512x512"]);
   for (const icon of maskable) {

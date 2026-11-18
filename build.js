@@ -564,6 +564,8 @@ ${bgLayersHtml}
 
     <div class="content">
 ${buildHeader()}
+      <div class="card-layout">
+      <div class="card-profile">
       <div class="identity">
 ${buildPhotoHtml()}
       <div class="identity-text">
@@ -576,11 +578,15 @@ ${buildPhotoHtml()}
 ${opts.paper ? translatedText("p", "paper-tagline", "tagline") : ""}
 
 ${buildNowHtml()}
+      </div>
+      <div class="card-details">
 ${buildContactInfo()}
 
 ${opts.paper ? buildQrSection() : buildLinksHtml()}
 
 ${opts.paper ? buildLinksHtml() : buildQrSection()}
+      </div>
+      </div>
     </div>
 ${opts.paper ? `    <svg class="paper-wave${opts.animateWaves ? " paper-wave-animated" : ""}" viewBox="0 0 480 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="paper-wave-color"><stop stop-color="${theme.accent}"/><stop offset="1" stop-color="${theme.dark}"/></linearGradient></defs><path d="M0 30 C105 5 168 86 310 63 C395 49 437 26 480 0 V100 H0Z" fill="url(#paper-wave-color)"/></svg>` : ""}
   </main>
@@ -669,7 +675,7 @@ function buildManifest() {
       start_url: ".",
       scope: ".",
       display: "standalone",
-      orientation: "portrait",
+      orientation: "any",
       background_color: theme.page,
       theme_color: theme.page,
       icons,

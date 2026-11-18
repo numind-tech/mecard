@@ -6,7 +6,7 @@ Run the generator locally or in CI, then publish the output on a static
 host. Card data and branding can live in a separate private repository.
 
 - Any number of languages, selected from browser preferences or manually.
-- Paper and illustrated layouts.
+- Paper and illustrated layouts that adapt to portrait and landscape.
 - Light and dark themes, including separate brand logo variants.
 - Contact downloads, native sharing, and one QR for a contact or its URL.
 - One card or a whole site, with shared defaults and a URL per person.
@@ -172,7 +172,17 @@ The default illustrated layout uses the configured backgrounds. Set
 `options.paper: true` for a paper card with labelled contact rows, visible
 link names and an animated footer wave.
 
-Contact hover backgrounds leave space before the QR.
+Portrait keeps a vertical layout. Landscape viewports at least 640px
+wide use two columns. In the paper layout, the name and title stay beside
+the portrait, with the save action below; the other column contains
+contact details and company links. With `qrContact` or `qrToggle`
+enabled, the QR sits beside the contact rows.
+
+Short landscape screens use more compact spacing and a lower footer
+wave. Controls retain their touch targets, contact hover backgrounds
+leave space before the QR, and safe areas account for phone notches.
+The enlarged QR also adapts to landscape. Content stays scrollable when
+needed, and installed cards allow rotation.
 
 #### Theme colours
 
@@ -275,7 +285,7 @@ published directory.
 
 **PWA**: the manifest and service worker support installation and offline
 reopening after the page has been loaded and cached. The installed card
-uses an app window. The build also supplies maskable
+uses an app window and allows rotation. The build also supplies maskable
 icons for launchers. Installation depends on browser support and
 [HTTPS or a local development server](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
 
