@@ -1,0 +1,49 @@
+/* Enabled by the viewport or the layout picker; one set of landscape rules.
+   The DOM retains its reading order in either orientation. */
+.card { max-width: 900px; }
+.card .content {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  grid-template-rows: auto 1fr;
+  gap: 24px clamp(24px, 4vw, 40px);
+  padding: 28px;
+  align-items: start;
+}
+.card-layout { display: contents; }
+.card .card-header { grid-column: 1; grid-row: 1; gap: 8px; margin: 0; }
+.card .brand { width: 108px; max-width: 100%; }
+.card-profile { grid-column: 1; grid-row: 2; }
+.card-details { grid-column: 2; grid-row: 1 / 3; }
+.card:not(.paper) .photo-wrap, .card:not(.paper) .photo { width: 104px; height: 104px; }
+.card:not(.paper) .photo-wrap { margin-bottom: 16px; }
+.card:not(.paper) .name { font-size: 1.75rem; }
+
+.paper-page { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
+.paper { max-width: 900px; }
+.paper .content { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: auto auto auto; padding: 28px 28px 72px; }
+.paper .card-header { margin: 0; }
+.paper .identity { flex-direction: row; align-items: center; gap: 16px; }
+/* Keep a single set of controls in the DOM. In landscape the primary
+   action fills the space below the portrait, beside the company links. */
+.paper .card-details { display: contents; }
+.paper .card-details > :is(.contact-block, .contact-info) { grid-column: 2; grid-row: 1 / 3; }
+.paper .contact-block { grid-template-columns: minmax(0, 1fr) 124px; gap: 12px; }
+.paper .contact-block-solo { display: block; }
+.paper .contact-qr .qr-container { width: 124px; height: 124px; }
+.paper .qr-section { grid-column: 1; grid-row: 3; margin-top: 0; }
+.paper .links { grid-column: 2; grid-row: 3; align-self: center; margin-top: 0; }
+.paper-wave { height: 56px; }
+
+@media (max-height: 500px) {
+  .paper .content { padding: 20px 24px 44px; gap: 12px 24px; }
+  .paper .photo-wrap, .paper .photo { width: 80px; height: 80px; }
+  .paper .name { font-size: 27px; }
+  .paper .contact-row { min-height: 52px; padding-block: 6px; font-size: 14px; }
+  /* Bring the glyphs closer to the QR without shrinking their touch targets. */
+  .paper .contact-qr .qr-mode-switch { margin-top: 0; }
+  .paper .contact-qr .qr-mode-switch button { padding-bottom: 8px; }
+  .paper .contact-qr .qr-mode-switch button::before { inset: 2px 6px 10px; }
+  .paper .contact-qr .qr-mode-switch button[aria-pressed="true"]::after { bottom: 9px; }
+  /* Keep clearance above the wave even at the tallest animation frame. */
+  .paper-wave { height: 32px; }
+}

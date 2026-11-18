@@ -148,7 +148,7 @@ test('both layouts inline the control, translated name and early script, and opt
         assert.doesNotMatch(html, /<img class="brand-(light|dark)"/);
       }
       if (!darkMode) {
-        assert.doesNotMatch(html, /class="theme-toggle"|--mode-page|mecard-theme|class="card-controls"/);
+        assert.doesNotMatch(html, /class="theme-toggle"|--mode-page|mecard-theme/);
         continue;
       }
       assert.match(html, /class="theme-toggle" aria-label="Mode sombre" data-i18n-aria="darkMode" aria-pressed="false" hidden/);

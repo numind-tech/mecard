@@ -176,6 +176,7 @@ French and English interface defaults are included. For any other language, prov
 | `qrMode`, `qrContactMode`, `qrLinkMode`, `qrContactLabel`, `qrLinkLabel` | QR selector's accessible names, captions and icon tooltips |
 | `language`, `background` | Language selector and background navigation |
 | `darkMode` | Accessible name of the dark mode toggle |
+| `layout`, `layoutPortrait`, `layoutLandscape` | Accessible name and action tooltips of the portrait/landscape toggle |
 | `email`, `phone`, `website` | Contact field labels |
 | `digitalCard` | Label for the card URL in the downloaded contact |
 
@@ -209,11 +210,19 @@ The default illustrated layout uses the configured backgrounds. Set
 `options.paper: true` for a paper card with labelled contact rows, visible
 link names and an animated footer wave.
 
-Portrait keeps a vertical layout. Landscape viewports at least 640px
-wide use two columns. In the paper layout, the name and title stay beside
-the portrait, with the save action below; the other column contains
+Cards open in portrait by default. Viewports at least 640px wide but less
+than 760px high use two columns. In the paper layout, the name and title
+stay beside the portrait, with the save action below; the other column contains
 contact details and company links. With `qrContact` or `qrToggle`
 enabled, the QR sits beside the contact rows.
+
+On screens at least 640px wide and 760px high, the button beside the
+theme toggle switches between Portrait and Landscape, letting you
+preview both.
+Each page opens with the automatic viewport layout; clicking overrides
+it until the page is reloaded. If the window becomes too small for the
+toggle, the responsive layout takes over; the manual choice resumes
+when there is room again. Without JavaScript, the layout remains automatic.
 
 Short landscape screens use more compact spacing and a lower footer
 wave. Controls retain their touch targets, contact hover backgrounds
@@ -334,8 +343,9 @@ not override the default indexing restrictions.
 ## Development
 
 `build.js` assembles one card; `build-site.js` builds a collection from
-separate data. Layout lives in `card.css` and `paper.css`. Page behavior
-lives in `card.js`, `language.js`, `qr-switch.js` and `appearance.js`,
+separate data. Layout lives in `card.css`, `paper.css` and `landscape.css`.
+Page behavior lives in `card.js`, `language.js`, `qr-switch.js`,
+`appearance.js` and `layout.js`,
 all embedded in the generated HTML. `appearance.css` and
 `appearance-theme.js` provide the palettes; `locales.js`, `backgrounds.js`
 and `icons.js` supply interface text and artwork. `favicon.js` creates

@@ -203,6 +203,23 @@ body {
 
 .card-profile, .card-details, .identity-text { min-width: 0; }
 
+.card-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px; margin-inline-start: auto; min-width: 0; }
+.card-controls .language-picker { max-width: 160px; }
+:is(.theme-toggle, .layout-toggle) { position: relative; isolation: isolate; display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 44px; border: 0; background: transparent; color: var(--mode-muted, var(--text-muted)); cursor: pointer; }
+:is(.theme-toggle, .layout-toggle)::before { content: ""; position: absolute; z-index: -1; inset: 8px 4px; border-radius: 50%; }
+:is(.theme-toggle, .layout-toggle) svg { width: 18px; height: 18px; }
+:is(.theme-toggle, .layout-toggle):focus-visible { outline: none; }
+:is(.theme-toggle, .layout-toggle):focus-visible::before { outline: 2px solid var(--mode-ink, var(--accent)); outline-offset: 2px; }
+@media (hover: hover) {
+  :is(.theme-toggle, .layout-toggle):hover::before { background: var(--mode-hover, rgba(var(--text-rgb), .08)); }
+}
+.layout-toggle .layout-landscape { display: none; }
+[data-layout="landscape"] .layout-toggle .layout-landscape { display: block; }
+[data-layout="landscape"] .layout-toggle .layout-portrait { display: none; }
+@media (max-width: 639px), (max-height: 759px) {
+  .layout-toggle { display: none; }
+}
+
 /* Reserve the longest translation without fixed heights or resize scripts. */
 .i18n-slot { display: inline-grid; vertical-align: top; min-width: 0; max-width: 100%; }
 .i18n-slot > * { grid-area: 1 / 1; min-width: 0; overflow-wrap: anywhere; }
@@ -723,28 +740,6 @@ body {
   .link-btn { width: 46px; height: 46px; border-radius: 13px; }
   .link-btn svg { width: 26px; height: 26px; }
   .qr-container { width: 125px; height: 125px; padding: 10px; }
-}
-
-/* A wide, short viewport is a two-column card, including after rotation.
-   The DOM keeps its reading order: controls, identity, then contact details. */
-@media (min-width: 640px) and (orientation: landscape) {
-  .card { max-width: 900px; }
-  .card .content {
-    display: grid;
-    grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
-    grid-template-rows: auto 1fr;
-    gap: 24px clamp(24px, 4vw, 40px);
-    padding: 28px;
-    align-items: start;
-  }
-  .card-layout { display: contents; }
-  .card .card-header { grid-column: 1; grid-row: 1; gap: 8px; margin: 0; }
-  .card .brand { width: 108px; max-width: 100%; }
-  .card-profile { grid-column: 1; grid-row: 2; }
-  .card-details { grid-column: 2; grid-row: 1 / 3; }
-  .card:not(.paper) .photo-wrap, .card:not(.paper) .photo { width: 104px; height: 104px; }
-  .card:not(.paper) .photo-wrap { margin-bottom: 16px; }
-  .card:not(.paper) .name { font-size: 1.75rem; }
 }
 
 /* The enlarged QR uses the short side of the screen, with its labels and

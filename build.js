@@ -313,7 +313,6 @@ function buildPhotoHtml() {
 }
 
 function buildHeader() {
-  if (!config.logo && config.languages.length < 2 && !opts.darkMode) return "";
   const themedLogo = opts.darkMode && config.logo && config.logoDark;
   // Each sanitized SVG has its own document, so matching gradient/clip IDs in
   // the two variants cannot interfere with each other or with the card.
@@ -336,7 +335,15 @@ function buildHeader() {
     ).join("")}</select></label>`;
   }
   const toggle = opts.darkMode ? `<button type="button" class="theme-toggle" aria-label="${escHtml(labels.darkMode)}" data-i18n-aria="darkMode" aria-pressed="false" hidden><svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14A8.5 8.5 0 0 1 10 3.5 8.5 8.5 0 1 0 20.5 14Z"/></svg><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>` : "";
-  return `      <header class="card-header">${logo}${opts.darkMode ? `<div class="card-controls">${languages}${toggle}</div>` : languages}</header>`;
+  const layout = `<button type="button" class="layout-toggle" aria-label="${escHtml(labels.layout)}" data-i18n-aria="layout" aria-pressed="false" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+      <rect class="layout-portrait" x="6" y="3" width="12" height="18" rx="2"/>
+      <rect class="layout-landscape" x="3" y="6" width="18" height="12" rx="2"/>
+    </svg>
+    <span hidden data-layout-label="layoutPortrait" data-i18n="layoutPortrait">${escHtml(labels.layoutPortrait)}</span>
+    <span hidden data-layout-label="layoutLandscape" data-i18n="layoutLandscape">${escHtml(labels.layoutLandscape)}</span>
+  </button>`;
+  return `      <header class="card-header">${logo}<div class="card-controls">${languages}${toggle}${layout}</div></header>`;
 }
 
 function buildSubtitle() {
@@ -557,6 +564,12 @@ ${indent(read("card.css"), 4)}
 ${opts.paper ? indent(read("paper.css"), 4) : ""}
 ${opts.darkMode ? indent(appearance.css + "\n" + read("appearance.css"), 4) : ""}
   </style>
+  <style id="card-landscape" media="(min-width: 640px) and (max-height: 759px)">
+${indent(read("landscape.css"), 4)}
+  </style>
+  <script>
+${indent(read("layout.js"), 4)}
+  </script>
 </head>
 <body${opts.paper ? ' class="paper-page"' : ""}>
   <main class="${["card", opts.paper && "paper", !opts.paper && backgrounds.length > 1 && "swipe", opts.glint && "glint"].filter(Boolean).join(" ")}">
