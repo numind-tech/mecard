@@ -2,14 +2,14 @@
 const EN = {
   qrLabel: "Scan to connect", saveLabel: "Save contact", shareLabel: "Share",
   showQr: "Show the QR code full screen", enlargeQr: "Tap to enlarge",
-  close: "Close", qrFor: "QR code for", language: "Language",
+  close: "Close", qrFor: "QR code for", language: "Language", darkMode: "Dark mode",
   background: "Card background", digitalCard: "Digital card",
   email: "Email", phone: "Phone", website: "Website",
 };
 const FR = {
   qrLabel: "Scanner pour me contacter", saveLabel: "Enregistrer le contact", shareLabel: "Partager",
   showQr: "Afficher le QR code en plein écran", enlargeQr: "Agrandir le QR code",
-  close: "Fermer", qrFor: "QR code de", language: "Langue",
+  close: "Fermer", qrFor: "QR code de", language: "Langue", darkMode: "Mode sombre",
   background: "Fond de la carte", digitalCard: "Carte de visite",
   email: "Mél", phone: "Téléphone", website: "Site web",
 };

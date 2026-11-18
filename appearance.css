@@ -1,0 +1,61 @@
+/* Shared controls and semantic colours for both card layouts. */
+:root {
+  --page: var(--mode-page);
+  --text: var(--mode-text);
+  --text-rgb: var(--mode-text-rgb);
+  --text-muted: var(--mode-muted);
+  --text-dim: var(--mode-dim);
+  --accent: var(--mode-ink);
+}
+.card-header { gap: 12px; }
+.card-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-inline-start: auto; min-width: 0; }
+.card-controls .language-picker { max-width: 160px; }
+.theme-toggle { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--mode-border); background: var(--mode-control); color: var(--mode-ink); cursor: pointer; }
+.theme-toggle:hover { background: var(--mode-hover); }
+.theme-toggle:focus-visible { outline: 2px solid var(--mode-ink); outline-offset: 3px; }
+.theme-toggle svg { width: 20px; height: 20px; }
+.theme-toggle .theme-sun { display: none; }
+[data-theme="dark"] .theme-toggle .theme-sun { display: block; }
+[data-theme="dark"] .theme-toggle .theme-moon { display: none; }
+
+.card { background: var(--mode-surface); }
+/* Keep the original artwork and brand colours while maintaining a readable
+   surface behind foreground text, including the illustrated backgrounds. */
+.card:not(.paper) .bg::after { content: ""; position: absolute; inset: 0; background: var(--mode-surface); opacity: .88; }
+.card:not(.paper) { border: 1px solid var(--mode-border); box-shadow: 0 24px 70px -24px rgba(0, 0, 0, .3); }
+.card:not(.paper) .link-btn, .card:not(.paper) .share-btn { background: var(--mode-control); border-color: var(--mode-border); color: var(--mode-text); }
+.card:not(.paper) .save-btn { background: var(--mode-button); border-color: var(--mode-button); color: var(--mode-button-text); }
+.card:not(.paper) :is(.contact-row, .link-btn, .share-btn):hover { background: var(--mode-hover); color: var(--mode-text); }
+.card:not(.paper) .save-btn:hover { filter: brightness(.93); }
+.card:not(.paper) .qr-section { border-color: var(--mode-border); }
+.card :is(.language-switch, .language-picker select) { background: var(--mode-control); border-color: var(--mode-border); color: var(--mode-text); }
+.card .language-switch button { color: var(--mode-muted); }
+.card .language-switch button[aria-pressed="true"] { background: var(--mode-button); color: var(--mode-button-text); }
+.card .brand { background: #fff; padding: 8px; border-radius: 8px; }
+.card .brand-themed { background: transparent; padding: 0; }
+.brand-themed img { width: 100%; height: auto; }
+.brand-themed .brand-dark { display: none; }
+:root[data-theme="dark"] .brand-themed .brand-light { display: none; }
+:root[data-theme="dark"] .brand-themed .brand-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .brand-themed .brand-light { display: none; }
+  :root:not([data-theme="light"]) .brand-themed .brand-dark { display: block; }
+}
+
+.paper { border-color: var(--mode-border); box-shadow: 0 24px 70px -24px rgba(0, 0, 0, .25); }
+.paper .photo { border-color: var(--mode-surface); box-shadow: 0 0 0 1px var(--mode-border); }
+.paper .sub-title, .paper-tagline { color: var(--mode-muted); }
+.paper .sub-org, .paper .contact-row svg { color: var(--mode-ink); }
+.paper-tagline { border-color: var(--mode-border); }
+.contact-label, .paper .qr-label { color: var(--mode-dim); }
+.paper .contact-row:hover { background: var(--mode-hover); }
+.paper .link-btn { background: var(--mode-surface); border-color: var(--mode-border); color: var(--mode-text); }
+.paper .link-btn:hover { background: var(--mode-hover); border-color: var(--mode-ink); color: var(--mode-ink); }
+.paper .action-btn { background: var(--mode-button); border-color: var(--mode-button); color: var(--mode-button-text); }
+.paper .action-btn:hover { background: var(--mode-button); filter: brightness(.93); }
+.paper .share-btn { background: var(--mode-surface); border-color: var(--mode-border); color: var(--mode-ink); }
+.paper .share-btn:hover { background: var(--mode-hover); border-color: var(--mode-ink); }
+.paper :is(.action-btn, .language-switch button, .language-picker select, .brand, .qr-container, .contact-row, .link-btn):focus-visible { outline-color: var(--mode-ink); }
+/* Scanners always get dark modules on white, in either appearance. */
+.card .qr-container { background: #fff; border-color: #e4e0ec; }
+.card .qr-container path[stroke], .paper-qr .qr-full-code path[stroke] { stroke: #16161a; stroke-opacity: 1; }

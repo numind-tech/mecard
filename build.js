@@ -14,6 +14,7 @@ import { ICONS } from "./icons.js";
 import { buildVCard, withPhoto, toVCardDataUri } from "./vcard.js";
 import { downloadPhoto } from "./photo.js";
 import { contactQrGeometry, contactQrSvg } from "./contact-qr.js";
+import { appearanceTheme } from "./appearance-theme.js";
 
 // ── Arguments ────────────────────────────────────────────────
 let args;
@@ -54,6 +55,7 @@ try {
 }
 const { theme, options: opts, backgrounds } = config;
 const labels = config.labels;
+const appearance = appearanceTheme(theme, opts.paper);
 
 // The stylesheet is static; the theme reaches it through these variables
 const themeCss = `:root {
@@ -270,9 +272,13 @@ function buildPhotoHtml() {
 }
 
 function buildHeader() {
-  if (!config.logo && config.languages.length < 2) return "";
+  if (!config.logo && config.languages.length < 2 && !opts.darkMode) return "";
+  const themedLogo = opts.darkMode && config.logo && config.logoDark;
+  // Each sanitized SVG has its own document, so matching gradient/clip IDs in
+  // the two variants cannot interfere with each other or with the card.
+  const logoImage = (svg, mode) => `<img class="brand-${mode}" src="data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}" alt="" />`;
   const logo = config.logo
-    ? `<a class="brand" href="${escHtml(config.website || config.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escHtml(config.organization || config.name)}">${config.logo}</a>`
+    ? `<a class="brand${themedLogo ? " brand-themed" : ""}" href="${escHtml(config.website || config.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escHtml(config.organization || config.name)}">${themedLogo ? logoImage(config.logo, "light") + logoImage(config.logoDark, "dark") : config.logo}</a>`
     : "<span></span>";
   const languageName = (lang) => new Intl.DisplayNames([lang], { type: "language" }).of(lang);
   let languages = "";
@@ -285,7 +291,8 @@ function buildHeader() {
       `<option value="${lang}" lang="${lang}"${lang === config.lang ? " selected" : ""}>${escHtml(languageName(lang))}</option>`
     ).join("")}</select></label>`;
   }
-  return `      <header class="card-header">${logo}${languages}</header>`;
+  const toggle = opts.darkMode ? `<button type="button" class="theme-toggle" aria-label="${escHtml(labels.darkMode)}" data-i18n-aria="darkMode" aria-pressed="false" hidden><svg class="theme-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 14A8.5 8.5 0 0 1 10 3.5 8.5 8.5 0 1 0 20.5 14Z"/></svg><svg class="theme-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></button>` : "";
+  return `      <header class="card-header">${logo}${opts.darkMode ? `<div class="card-controls">${languages}${toggle}</div>` : languages}</header>`;
 }
 
 function buildSubtitle() {
@@ -444,7 +451,10 @@ const html = `<!DOCTYPE html>
 ${opts.indexable ? "" : `  <meta name="robots" content="${NO_INDEX}">`}
   <title>${escHtml(config.name)}</title>
   <meta name="description" content="${escHtml(summary)}">
-  <meta name="theme-color" content="${theme.page}">
+  <meta name="theme-color" content="${theme.page}"${opts.darkMode ? ` data-light="${appearance.light.page}" data-dark="${appearance.dark.page}"` : ""}>
+${opts.darkMode ? `  <script>
+${indent(read("appearance.js"), 4)}
+  </script>` : ""}
   <meta property="og:title" content="${escHtml(config.name)}">
   <meta property="og:description" content="${escHtml(summary)}">
   <meta property="og:url" content="${escHtml(config.url)}">
@@ -468,6 +478,7 @@ ${indent(themeCss, 4)}
 
 ${indent(read("card.css"), 4)}
 ${opts.paper ? indent(read("paper.css"), 4) : ""}
+${opts.darkMode ? indent(appearance.css + "\n" + read("appearance.css"), 4) : ""}
   </style>
 </head>
 <body${opts.paper ? ' class="paper-page"' : ""}>

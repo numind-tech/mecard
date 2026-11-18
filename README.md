@@ -7,11 +7,12 @@ host. Card data and branding can live in a separate private repository.
 
 - Any number of languages, selected from browser preferences or manually.
 - Paper and illustrated layouts.
+- Light and dark themes, including separate brand logo variants.
 - Contact downloads, native sharing, and contact QR codes.
 - One card or a whole site, with shared defaults and a URL per person.
 
 Photos, logos, QR codes, translations and contact data are embedded in
-the HTML. Switching language does not reload the
+the HTML. Switching language or appearance does not reload the
 page or fetch assets from another site.
 
 ## Setup
@@ -105,6 +106,7 @@ repository and its deployment environment.
 | `website` | Shown as text, opens in a new tab |
 | `photo` | Local or HTTP(S) JPEG, PNG, GIF or WebP, embedded at build time. Omit to show initials |
 | `logo` | Optional SVG file or inline SVG, sanitized like custom icons |
+| `logoDark` | Optional SVG variant for dark backgrounds, used alongside `logo` when dark mode is enabled |
 | `url` | Required for a single card; derived by site builds. Destination for URL QR mode and sharing |
 
 Any of `email`, `phone`, `website`, and `photo` can be left out.
@@ -132,6 +134,7 @@ French and English interface defaults are included. For any other language, prov
 | `saveLabel`, `shareLabel`, `qrLabel` | Contact button, share button and QR caption |
 | `showQr`, `enlargeQr`, `qrFor`, `close` | QR button, tooltip, dialog title prefix and close button |
 | `language`, `background` | Language selector and background navigation |
+| `darkMode` | Accessible name of the dark mode toggle |
 | `email`, `phone`, `website` | Contact field labels |
 | `digitalCard` | Label for the card URL in the downloaded contact |
 
@@ -167,6 +170,12 @@ Three colour bands run diagonally across the card, top-left to bottom-right. The
 
 Muted text is derived from `text`. Colours use three- or six-digit hex notation and need quotes in YAML: an unquoted `#` starts a comment, so the build warns and uses the default colour instead.
 
+#### Light and dark modes
+
+The page follows the browser’s light/dark preference, with a moon/sun button to choose manually. The choice is remembered across cards on the same origin when browser storage is available; switching also works with storage blocked or when opening the HTML locally. Until a manual choice is made, changes to the system setting update the page automatically. The appearance is applied before the first paint, and CSS still follows the system setting without JavaScript.
+
+Both layouts use colours derived from the configured theme, with readable foreground and button colours. With `logo` and `logoDark`, the appropriate logo is shown directly on the card background, following the system theme or manual choice. Both SVGs are sanitized and embedded; their paths resolve relative to the YAML file declaring them, including shared defaults. Without `logoDark`, the single logo retains a white backing for readability. QR codes stay dark on white in either mode. The paper footer wave keeps its brand colours. Set `options.darkMode: false` to retain the original configured appearance without a toggle. Localize its accessible name with `labels.darkMode`.
+
 ### Backgrounds
 
 Set `backgrounds` to an ordered list of names:
@@ -186,7 +195,8 @@ The `options` mapping accepts these settings:
 | Key | Default | Purpose |
 |---|---|---|
 | `indexable` | `false` | Ask search engines not to index the card; set to `true` to permit indexing |
-| `paper` | `false` | White card with visible link labels and a footer wave; uses `dark` for buttons/QR and `accent` for the start of the wave |
+| `paper` | `false` | Paper card with visible link labels and a footer wave; uses `dark` for buttons and `accent` for the start of the wave |
+| `darkMode` | `true` | Follow the system appearance and offer a remembered light/dark toggle |
 | `glint` | `false` | Light sweep across the card |
 | `animateWaves` | `true` | Animate the wave boundaries, including the paper layout's footer; set to `false` for a still wave |
 | `qr` | `true` | Display the QR code |
@@ -260,8 +270,9 @@ not override the default indexing restrictions.
 
 `build.js` assembles one card; `build-site.js` builds a collection from
 separate data. Layout lives in `card.css` and `paper.css`. Page behavior
-lives in `card.js` and `language.js`,
-all embedded in the generated HTML. `locales.js`, `backgrounds.js`
+lives in `card.js`, `language.js`, `appearance.js`,
+all embedded in the generated HTML. `appearance.css` and
+`appearance-theme.js` provide the palettes; `locales.js`, `backgrounds.js`
 and `icons.js` supply interface text and artwork. `npm run dev` rebuilds on source or data changes.
 
 ## License

@@ -29,6 +29,7 @@ export const THEME = {
 export const OPTIONS = {
   indexable: false,
   paper: false,
+  darkMode: true,
   glint: false,
   animateWaves: true,
   qr: true,
@@ -49,7 +50,7 @@ export const NO_INDEX = "noindex, nofollow, noarchive, nosnippet, noimageindex";
 const RENAMED = { waves: "animateWaves" };
 
 const TEXT_KEYS = ["name", "title", "tagline", "organization", "department", "email", "phone", "website", "photo", "url", "lang"];
-const KEYS = [...TEXT_KEYS, "links", "theme", "backgrounds", "options", "now", "nameParts", "logo", "translations", "labels", "dir"];
+const KEYS = [...TEXT_KEYS, "links", "theme", "backgrounds", "options", "now", "nameParts", "logo", "logoDark", "translations", "labels", "dir"];
 const LINK_KEYS = ["label", "url", "icon"];
 const NOW_KEYS = ["text", "until", "url"];
 const NAME_KEYS = ["given", "middle", "family", "prefix", "suffix"];
@@ -78,7 +79,7 @@ function readLayer(file) {
     const trimmed = value.trim();
     return !trimmed.startsWith("<") && /\.svg$/i.test(trimmed) ? resolve(base, trimmed) : value;
   };
-  if (raw.logo != null) raw.logo = iconPath(raw.logo);
+  for (const key of ["logo", "logoDark"]) if (raw[key] != null) raw[key] = iconPath(raw[key]);
   if (Array.isArray(raw.links)) raw.links = raw.links.map((link) => link && typeof link === "object" ? { ...link, icon: iconPath(link.icon) } : link);
   return raw;
 }
@@ -135,6 +136,7 @@ export function loadConfig(file, warn = () => {}, lang, { defaults, url } = {}) 
   config.now = loadNow(raw.now, warn);
   config.nameParts = loadNameParts(raw.nameParts, warn);
   config.logo = raw.logo ? loadIcon(raw.logo, base, (msg) => warn(`logo: ${msg}`)).icon : null;
+  config.logoDark = raw.logoDark ? loadIcon(raw.logoDark, base, (msg) => warn(`logoDark: ${msg}`)).icon : null;
   return config;
 }
 

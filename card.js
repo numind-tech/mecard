@@ -68,7 +68,7 @@ document.querySelectorAll('.now[data-until]').forEach((el) => {
     // Modified arrows belong to the browser (Alt+← is Back), and the
     // card stays put while the QR code is up
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-    if (e.target.closest('input, textarea, select, .language-switch, .language-picker') || document.querySelector('dialog[open]')) return;
+    if (e.target.closest('input, textarea, select, .language-switch, .language-picker, .theme-toggle') || document.querySelector('dialog[open]')) return;
     if (e.key === 'ArrowRight') show(current + 1, true);
     if (e.key === 'ArrowLeft') show(current - 1, true);
   });
@@ -77,7 +77,7 @@ document.querySelectorAll('.now[data-until]').forEach((el) => {
   // A second finger means a pinch, so the swipe is dropped.
   let x0 = null, y0 = 0, swiped = false;
   card.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('.language-switch, .language-picker')) return;
+    if (e.target.closest('.language-switch, .language-picker, .theme-toggle')) return;
     if (!e.isPrimary) { x0 = null; return; }
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     x0 = e.clientX; y0 = e.clientY; swiped = false;
@@ -171,6 +171,7 @@ document.querySelectorAll('.now[data-until]').forEach((el) => {
   dialog.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => {
     meta.content = color;
+    dispatchEvent(new Event('mecard:qrclose'));
     lock?.release();
     lock = null;
   });

@@ -75,7 +75,7 @@ test("explicit defaults, hidden text and RTL direction are independent per langu
 });
 
 test("translations cannot replace shared URLs, photos, logo or code settings", () => {
-  for (const key of ["url", "website", "photo", "logo", "links", "name", "translations"]) {
+  for (const key of ["url", "website", "photo", "logo", "logoDark", "links", "name", "translations"]) {
     assert.throws(() => read({ translations: { fr: { [key]: "javascript:alert(1)" } } }), /cannot be translated/, key);
   }
   assert.throws(() => read({ translations: { fr: { options: { pwa: true } } } }), /cannot be translated/);
@@ -91,8 +91,10 @@ test("invalid base options still warn instead of being silently converted", () =
 });
 
 test("logos pass through the static SVG sanitizer", () => {
-  const warnings = [];
-  const config = read({ logo: '<svg viewBox="0 0 24 24" onload="alert(1)"><script>alert(1)</script></svg>' }, undefined, message => warnings.push(message));
-  assert.doesNotMatch(config.logo, /onload|script|alert/);
-  assert.match(warnings.join(" "), /unsafe/);
+  for (const key of ["logo", "logoDark"]) {
+    const warnings = [];
+    const config = read({ [key]: '<svg viewBox="0 0 24 24" onload="alert(1)"><script>alert(1)</script></svg>' }, undefined, message => warnings.push(message));
+    assert.doesNotMatch(config[key], /onload|script|alert/);
+    assert.match(warnings.join(" "), /unsafe/);
+  }
 });
