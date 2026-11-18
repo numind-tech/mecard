@@ -18,7 +18,7 @@ page or fetch assets from another site.
 
 ## Setup
 
-Use **Node.js 22 or later** and npm.
+Use **Node.js 22 or later** and npm, or the [container image](#container-image).
 From the generator checkout, install the locked dependencies:
 
 ```bash
@@ -75,6 +75,37 @@ The build checks the config as it reads it and prints a warning for anything it 
 
 The preview server listens only on your computer's IPv4 loopback interface.
 
+### Container image
+
+The image packages the generator, its dependencies and fonts. It provides
+a shell and two commands: `mecard` for one card and `mecard-site` for a
+site. Use it locally with Docker or Podman, or in a CI job that supplies
+the data checkout and collects the output.
+
+Build it from this repository:
+
+```sh
+docker build -t mecard:local .
+```
+
+Then, from a separate data checkout containing `site.yaml`:
+
+```sh
+mkdir -p dist
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/data:ro" -v "$PWD/dist:/output" -w /data \
+  mecard:local mecard-site --config site.yaml --out /output/site --strict
+```
+
+The generated site is now in that checkout's `dist/site/`. Mount the
+parent output directory so the generator can replace the site atomically.
+The image's build context includes only the generic generator files.
+
+The [container guide](docs/container-ci.md) covers interactive shells,
+Podman/SELinux mounts, image versions and registry publication. The
+GitHub workflow builds AMD64 and ARM64 images for GHCR. Use a versioned
+tag or image digest in CI.
+
 ## Publishing
 
 Serve the complete generated directory on a static host, such as GitHub
@@ -85,9 +116,15 @@ Site builds produce `_redirects` for an optional root redirect and
 `_headers` for indexing preferences. Cloudflare Pages understands these
 files directly; configure equivalent rules when using another host.
 
-The public repository's workflow tests the generator with synthetic
-data. Card data and deployment credentials belong to a separate data
-repository and its deployment environment.
+The [GitLab CI example](examples/gitlab-ci.yml) is an optional integration:
+one job generates the site and saves it as an artifact; another publishes
+that artifact to Cloudflare. The [setup guide](docs/container-ci.md)
+explains image selection and protected deployment variables. The same
+generator commands can be used with other CI and hosting services.
+
+The public repository's workflows test the generator and publish its
+image. Personal card data and site deployment credentials belong to the
+data repository and its deployment environment.
 
 ## Configuration
 
@@ -303,6 +340,16 @@ all embedded in the generated HTML. `appearance.css` and
 `appearance-theme.js` provide the palettes; `locales.js`, `backgrounds.js`
 and `icons.js` supply interface text and artwork. `favicon.js` creates
 the portrait thumbnail. `npm run dev` rebuilds on source or data changes.
+
+```sh
+npm test
+scripts/test-container.sh mecard:local
+```
+
+Tests use synthetic data. The container smoke test checks generation
+from a read-only data mount, relative theme assets, both commands and
+files exported to the host. It requires the locally built image and
+Docker, or `CONTAINER_ENGINE=podman`.
 
 ## License
 

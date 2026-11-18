@@ -1,0 +1,28 @@
+# Send only the generic generator to the builder. Do not replace this with
+# broad *.js / *.css exceptions: a private theme could use those extensions.
+**
+!Dockerfile
+!.dockerignore
+!package.json
+!package-lock.json
+!LICENSE
+!appearance-theme.js
+!appearance.js
+!appearance.css
+!backgrounds.js
+!build-site.js
+!build.js
+!card.js
+!card.css
+!config.js
+!contact-qr.js
+!favicon.js
+!icons.js
+!language.js
+!locales.js
+!paper.css
+!photo.js
+!qr-switch.js
+!svg.js
+!urls.js
+!vcard.js

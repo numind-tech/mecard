@@ -1,0 +1,48 @@
+# Copy to .gitlab-ci.yml in the PRIVATE data repository.
+# Set MECARD_IMAGE to a published image digest or a versioned GHCR tag.
+stages: [build, deploy]
+
+build_cards:
+  stage: build
+  image:
+    name: "$MECARD_IMAGE"
+    entrypoint: [""]
+  interruptible: true
+  script:
+    - mecard-site --config site.yaml --out dist/site --strict
+  artifacts:
+    name: "cards-$CI_COMMIT_SHORT_SHA"
+    paths:
+      - dist/site/
+    expire_in: 1 week
+    access: maintainer
+
+deploy_cards:
+  stage: deploy
+  image: node:24-bookworm-slim
+  needs:
+    - job: build_cards
+      artifacts: true
+  # Only protected default-branch pipelines can publish. Scope the token
+  # to the production environment so it is absent from the build job.
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_COMMIT_REF_PROTECTED == "true"'
+  environment:
+    name: production
+  resource_group: cards-production
+  interruptible: false
+  variables:
+    WRANGLER_SEND_METRICS: "false"
+    CLOUDFLARE_PAGES_BRANCH: "main"
+  script:
+    - |
+      set -eu
+      : "${CLOUDFLARE_API_TOKEN:?Set the protected production API token in GitLab}"
+      : "${CLOUDFLARE_ACCOUNT_ID:?Set the Cloudflare account ID in GitLab}"
+      : "${CLOUDFLARE_PAGES_PROJECT:?Set the existing Pages project name in GitLab}"
+      cd dist/site
+      npx --yes wrangler@4.164.0 pages deploy . \
+        --project-name "$CLOUDFLARE_PAGES_PROJECT" \
+        --branch "$CLOUDFLARE_PAGES_BRANCH" \
+        --commit-hash "$CI_COMMIT_SHA" \
+        --commit-dirty=true
