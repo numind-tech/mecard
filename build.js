@@ -9,7 +9,7 @@ import { createHash } from "crypto";
 import QRCode from "qrcode";
 import { Resvg } from "@resvg/resvg-js";
 import { BACKGROUNDS, restingWaves, rgb } from "./backgrounds.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, NO_INDEX } from "./config.js";
 import { ICONS } from "./icons.js";
 import { buildVCard, withPhoto, toVCardDataUri } from "./vcard.js";
 import { downloadPhoto } from "./photo.js";
@@ -23,6 +23,8 @@ try {
       out: { type: "string", short: "o", default: "dist" },
       strict: { type: "boolean", default: false },
       lang: { type: "string" },
+      defaults: { type: "string" },
+      url: { type: "string" },
     },
   }).values;
 } catch (err) {
@@ -42,8 +44,9 @@ const warn = (msg) => {
 
 let config, variants;
 try {
-  config = loadConfig(args.config, warn, args.lang);
-  variants = config.languages.map((lang) => lang === config.lang ? config : loadConfig(args.config, (message) => warn(`${lang}: ${message}`), lang));
+  const shared = { defaults: args.defaults, url: args.url };
+  config = loadConfig(args.config, warn, args.lang, shared);
+  variants = config.languages.map((lang) => lang === config.lang ? config : loadConfig(args.config, (message) => warn(`${lang}: ${message}`), lang, shared));
 } catch (err) {
   console.error(err.message);
   process.exit(1);
@@ -419,6 +422,7 @@ const html = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+${opts.indexable ? "" : `  <meta name="robots" content="${NO_INDEX}">`}
   <title>${escHtml(config.name)}</title>
   <meta name="description" content="${escHtml(summary)}">
   <meta name="theme-color" content="${theme.page}">
@@ -471,7 +475,7 @@ ${buildLinksHtml()}
 
 ${buildQrSection()}
     </div>
-${opts.paper ? `    <svg class="paper-wave" viewBox="0 0 480 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="paper-wave-color"><stop stop-color="${theme.accent}"/><stop offset="1" stop-color="${theme.dark}"/></linearGradient></defs><path d="M0 30 C105 5 168 86 310 63 C395 49 437 26 480 0 V100 H0Z" fill="url(#paper-wave-color)"/></svg>` : ""}
+${opts.paper ? `    <svg class="paper-wave${opts.animateWaves ? " paper-wave-animated" : ""}" viewBox="0 0 480 100" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="paper-wave-color"><stop stop-color="${theme.accent}"/><stop offset="1" stop-color="${theme.dark}"/></linearGradient></defs><path d="M0 30 C105 5 168 86 310 63 C395 49 437 26 480 0 V100 H0Z" fill="url(#paper-wave-color)"/></svg>` : ""}
   </main>
 ${bgDotsHtml}
 ${buildQrDialog()}

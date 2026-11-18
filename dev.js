@@ -19,6 +19,8 @@ try {
       out: { type: "string", short: "o", default: "dist" },
       strict: { type: "boolean" },
       lang: { type: "string" },
+      defaults: { type: "string" },
+      url: { type: "string" },
     },
   }).values;
 } catch (err) {
@@ -57,7 +59,7 @@ function build() {
 const SOURCES = /\.(ya?ml|m?js|css|svg|jpe?g|png|gif|webp)$/i;
 const SKIP = /(^|[\\/])(node_modules|\.git)([\\/]|$)/;
 let timer;
-for (const dir of new Set([here, dirname(resolve(flags.config))])) {
+for (const dir of new Set([here, dirname(resolve(flags.config)), ...(flags.defaults ? [dirname(resolve(flags.defaults))] : [])])) {
   watch(dir, { recursive: true }, (_, name) => {
     if (!name) return;
     const file = resolve(dir, name);

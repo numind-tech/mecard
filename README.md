@@ -2,11 +2,13 @@
 
 Generate digital business cards from YAML. Each card has one HTML page
 for all its languages and optional PWA files.
-Run the generator locally, then publish the output on a static host.
+Run the generator locally or in CI, then publish the output on a static
+host. Card data and branding can live in a separate private repository.
 
 - Any number of languages, selected from browser preferences or manually.
 - Paper and illustrated layouts.
 - Contact downloads, native sharing, and a QR for the card URL.
+- One card or a whole site, with shared defaults and a URL per person.
 
 Photos, logos, QR codes, translations and contact data are embedded in
 the HTML. Switching language does not reload the
@@ -35,19 +37,55 @@ npm test                  # check the output using synthetic test data
 
 Both `dev` and `build` take `--config <file>` and `--out <dir>`, so one checkout can produce several cards. Paths inside a config, such as `photo`, are relative to that config file.
 
+### Several cards on one domain
+
+Keep each person's YAML in `cards/`, shared branding in `cards/shared.yaml`, and the site settings in `site.yaml`. These paths are gitignored so personal data can live in a separate private repository.
+
+The site settings contain a domain `url`, an optional root `redirect`, an optional `defaults` YAML path, and a `cards` mapping from URL slugs to individual YAML paths. All file paths are relative to `site.yaml`. A card mapped as `person: cards/person.yaml` is generated at `/person/`, with its public URL derived from the site domain. Slugs use lowercase letters, digits and single hyphens between segments; individual card files do not need their own `url`.
+
+```bash
+npm run build:site -- --strict
+# Or keep all data in another checkout:
+npm run build:site -- \
+  --config /path/to/private-cards/site.yaml --out dist/site --strict
+```
+
+Publish the complete `dist/site/` directory. It contains each card's
+HTML and optional PWA assets, a 404 page, and hosting rules.
+Rebuilding replaces the site only after every card succeeds and removes
+cards no longer listed. A sibling `dist/site.mecard.json` records output
+ownership; keep it locally and do not upload it. Existing directories
+without this marker are preserved: choose a new output path for the first
+build.
+
+Shared mappings (theme, options, translations and labels) merge with each person's settings. Lists, such as links, are replaced by the person's list; explicit `null` clears a shared value. Asset paths are resolved relative to the YAML file declaring them. Remote portrait URLs are downloaded and embedded at build time, so no portrait file needs to be committed.
+
+For a single-card preview using the same shared theme:
+
+```bash
+npm run dev -- \
+  --config /path/to/private-cards/cards/person.yaml \
+  --defaults /path/to/private-cards/cards/shared.yaml \
+  --url https://cards.example.org/person/
+```
+
 The build checks the config as it reads it and prints a warning for anything it has to work around: a misspelt key (with a suggestion), a colour that isn't a hex value, a link without a `url`, an unknown icon. Add `--strict` to make warnings fail the build.
 
 The preview server listens only on your computer's IPv4 loopback interface.
 
-## Deploy to GitHub Pages
+## Publishing
 
-The included workflow builds and publishes on every push to `main` — you don't need to run npm locally after the first setup.
+Serve the complete generated directory on a static host, such as GitHub
+Pages, Cloudflare Pages or your own web server. Set the card or site URL
+to its public address. Domain routing and HTTPS are configured at the host.
 
-1. Push the repo to GitHub
-2. **Settings → Pages → Source** → choose **GitHub Actions**
-3. The card goes live at `https://<you>.github.io/<repo>`
+Site builds produce `_redirects` for an optional root redirect and
+`_headers` for indexing preferences. Cloudflare Pages understands these
+files directly; configure equivalent rules when using another host.
 
-Set `url:` in `config.yaml` to that address. The QR code encodes it, so if they don't match the code will point at the wrong place.
+The public repository's workflow tests the generator with synthetic
+data. Card data and deployment credentials belong to a separate data
+repository and its deployment environment.
 
 ## Configuration
 
@@ -67,7 +105,7 @@ Set `url:` in `config.yaml` to that address. The QR code encodes it, so if they 
 | `website` | Shown as text, opens in a new tab |
 | `photo` | Local or HTTP(S) JPEG, PNG, GIF or WebP, embedded at build time. Omit to show initials |
 | `logo` | Optional SVG file or inline SVG, sanitized like custom icons |
-| `url` | Required. Where the card is hosted — encoded into the QR code |
+| `url` | Required for a single card; derived by site builds. Destination for URL QR mode and sharing |
 
 Any of `email`, `phone`, `website`, and `photo` can be left out.
 
@@ -147,9 +185,10 @@ The `options` mapping accepts these settings:
 
 | Key | Default | Purpose |
 |---|---|---|
-| `paper` | `false` | White card with visible link labels and a static footer wave instead of background animations; uses `dark` for buttons/QR and `accent` for the start of the wave |
+| `indexable` | `false` | Ask search engines not to index the card; set to `true` to permit indexing |
+| `paper` | `false` | White card with visible link labels and a footer wave; uses `dark` for buttons/QR and `accent` for the start of the wave |
 | `glint` | `false` | Light sweep across the card |
-| `animateWaves` | `true` | Animate the wave boundaries |
+| `animateWaves` | `true` | Animate the wave boundaries, including the paper layout's footer; set to `false` for a still wave |
 | `qr` | `true` | Display the QR code |
 | `saveContact` | `true` | Offer contact download |
 | `share` | `true` | Offer sharing where supported |
@@ -160,6 +199,12 @@ Use `labels` for interface text. The legacy `options.qrLabel`,
 override the corresponding labels.
 
 Animation is reduced or stopped for visitors who set `prefers-reduced-motion`.
+
+### Indexing
+
+Cards are not indexable by default. `options.indexable: false` adds a robots meta tag with `noindex`, `nofollow`, `noarchive`, `nosnippet` and `noimageindex`. Site builds also emit Cloudflare Pages `_headers` rules with `X-Robots-Tag`, scoped to unindexed cards when preferences differ. A single-card HTML keeps the meta tag on any static host.
+
+Do not block search crawlers with `Disallow: /` in `robots.txt`: they need to read the page or HTTP headers to see `noindex`. These directives are requests to compliant crawlers, not authentication or a guarantee against copying. Blocking known AI crawlers can be configured separately at the hosting provider. See [Google's noindex documentation](https://developers.google.com/search/docs/crawling-indexing/block-indexing).
 
 ## Contact exchange
 
@@ -189,9 +234,12 @@ is available, which depends on the browser and a secure context.
 |---|---|
 | One card, `pwa: false` | `index.html` |
 | One card, `pwa: true` (default) | The same files, plus `manifest.webmanifest`, `sw.js`, a portrait or initials icon, and maskable PNG icons |
+| Site | Each card's files in its slug directory, `404.html`, and `_headers` / `_redirects` when applicable |
 
-Builds default to `dist/`. Keep the output directory together when
-copying or publishing it.
+Single-card builds default to `dist/`; site builds default to
+`dist/site/`. Keep each output directory together when copying or
+publishing it. The sibling site ownership marker stays outside the
+published directory.
 
 **PWA**: the manifest and service worker support installation and offline
 reopening after the page has been loaded and cached. The installed card
@@ -200,11 +248,13 @@ icons for launchers. Installation depends on browser support and
 [HTTPS or a local development server](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
 
 **Metadata**: the HTML includes Open Graph fields and schema.org
-`Person` data with profile links listed as `sameAs`.
+`Person` data with profile links listed as `sameAs`. This metadata does
+not override the default indexing restrictions.
 
 ## Development
 
-`build.js` assembles one card. Layout lives in `card.css` and `paper.css`. Page behavior
+`build.js` assembles one card; `build-site.js` builds a collection from
+separate data. Layout lives in `card.css` and `paper.css`. Page behavior
 lives in `card.js` and `language.js`,
 all embedded in the generated HTML. `locales.js`, `backgrounds.js`
 and `icons.js` supply interface text and artwork. `npm run dev` rebuilds on source or data changes.

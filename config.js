@@ -27,6 +27,7 @@ export const THEME = {
 };
 
 export const OPTIONS = {
+  indexable: false,
   paper: false,
   glint: false,
   animateWaves: true,
@@ -41,6 +42,8 @@ export const OPTIONS = {
 
 export const BG_NAMES = Object.keys(BACKGROUNDS);
 
+export const NO_INDEX = "noindex, nofollow, noarchive, nosnippet, noimageindex";
+
 // Options that were renamed; the old names still work, with a warning
 const RENAMED = { waves: "animateWaves" };
 
@@ -50,7 +53,7 @@ const LINK_KEYS = ["label", "url", "icon"];
 const NOW_KEYS = ["text", "until", "url"];
 const NAME_KEYS = ["given", "middle", "family", "prefix", "suffix"];
 
-export function loadConfig(file, warn = () => {}, lang) {
+function readLayer(file) {
   if (!existsSync(file)) {
     throw new Error(`${file} not found — create it with your name and card URL (see README.md).`);
   }
@@ -63,6 +66,39 @@ export function loadConfig(file, warn = () => {}, lang) {
   if (typeof raw !== "object" || Array.isArray(raw)) {
     throw new Error(`${file} should be a list of key: value settings`);
   }
+  const base = dirname(resolve(file));
+  // Resolve assets where they are declared, including in shared defaults.
+  if (typeof raw.photo === "string") {
+    raw.photo = raw.photo.trim();
+    if (raw.photo && !/^[a-z][a-z0-9+.-]*:/i.test(raw.photo)) raw.photo = resolve(base, raw.photo);
+  }
+  const iconPath = (value) => {
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    return !trimmed.startsWith("<") && /\.svg$/i.test(trimmed) ? resolve(base, trimmed) : value;
+  };
+  if (raw.logo != null) raw.logo = iconPath(raw.logo);
+  if (Array.isArray(raw.links)) raw.links = raw.links.map((link) => link && typeof link === "object" ? { ...link, icon: iconPath(link.icon) } : link);
+  return raw;
+}
+
+// Mappings merge recursively; lists and explicit nulls replace defaults.
+// Object.fromEntries avoids special setters for keys such as __proto__.
+function mergeDefaults(base, override, depth = 0) {
+  if (depth > 16) throw new Error("config nesting is too deep");
+  const mapping = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  if (!mapping(base) || !mapping(override)) return override;
+  return Object.fromEntries([...new Set([...Object.keys(base), ...Object.keys(override)])].map((key) => [
+    key, Object.hasOwn(override, key)
+      ? Object.hasOwn(base, key) ? mergeDefaults(base[key], override[key], depth + 1) : override[key]
+      : base[key],
+  ]));
+}
+
+export function loadConfig(file, warn = () => {}, lang, { defaults, url } = {}) {
+  let raw = readLayer(file);
+  if (defaults) raw = mergeDefaults(readLayer(defaults), raw);
+  if (url != null) raw.url = url;
   const base = dirname(resolve(file));
   checkKeys(raw, KEYS, "", warn);
   const localized = localize(raw, lang, warn);
