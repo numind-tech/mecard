@@ -10,6 +10,7 @@
   "scripts": {
     "build": "node build.js",
     "build:site": "node build-site.js",
+    "build:demo": "node scripts/build-demo.js",
     "dev": "node dev.js",
     "test": "node --test \"test/*.test.js\""
   },
@@ -22,6 +23,7 @@
     "yaml": "^2.7.0"
   },
   "devDependencies": {
-    "ical.js": "^2.2.1"
+    "ical.js": "^2.2.1",
+    "playwright": "1.65.1"
   }
 }

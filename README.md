@@ -5,6 +5,10 @@ for all its languages, a portrait favicon, and optional PWA files.
 Run the generator locally or in CI, then publish the output on a static
 host. Card data and branding can live in a separate private repository.
 
+This project builds on [Matt Grau’s original mecard](https://github.com/mgrau/mecard).
+Thank you, Matt, for creating it and sharing the code. This fork adds
+multilingual cards, more layouts and sharing controls, and multi-card builds.
+
 - Any number of languages, selected from browser preferences or manually.
 - Paper and illustrated layouts that adapt to portrait and landscape.
 - Light and dark themes, including separate brand logo variants.
@@ -15,6 +19,23 @@ host. Card data and branding can live in a separate private repository.
 Photos, logos, QR codes, translations and contact data are embedded in
 the HTML. Switching language, appearance or QR mode does not reload the
 page or fetch assets from another site.
+
+## Demo
+
+[Try the live demo](https://numind-tech.github.io/mecard/) or start from
+its [fictional card configuration](examples/demo.yaml).
+
+| Portrait · Light · English | Portrait · Dark · French |
+|---|---|
+| [![Light portrait card](https://numind-tech.github.io/mecard/previews/portrait-light.png)](https://numind-tech.github.io/mecard/card/) | [![Dark portrait card](https://numind-tech.github.io/mecard/previews/portrait-dark.png)](https://numind-tech.github.io/mecard/card/) |
+
+**Landscape · Light · English**
+
+[![Light landscape card](https://numind-tech.github.io/mecard/previews/landscape-light.png)](https://numind-tech.github.io/mecard/card/)
+
+**Landscape · Dark · French**
+
+[![Dark landscape card](https://numind-tech.github.io/mecard/previews/landscape-dark.png)](https://numind-tech.github.io/mecard/card/)
 
 ## Setup
 
@@ -122,8 +143,9 @@ that artifact to Cloudflare. The [setup guide](docs/container-ci.md)
 explains image selection and protected deployment variables. The same
 generator commands can be used with other CI and hosting services.
 
-The public repository's workflows test the generator and publish its
-image. Personal card data and site deployment credentials belong to the
+The public repository's workflows test the generator, publish its image,
+and deploy the fictional demo to GitHub Pages. Personal card data and
+site deployment credentials belong to the
 data repository and its deployment environment.
 
 ## Configuration
@@ -360,6 +382,22 @@ Tests use synthetic data. The container smoke test checks generation
 from a read-only data mount, relative theme assets, both commands and
 files exported to the host. It requires the locally built image and
 Docker, or `CONTAINER_ENGINE=podman`.
+
+### Demo publication
+
+```sh
+npx playwright install chromium
+npm run build:demo
+```
+
+This builds `dist/demo/`, captures the four views in Chromium, and checks
+offline reopening. To preview the gallery, serve `dist/demo/` with a
+local static server.
+
+In repository **Settings → Pages**, choose **GitHub Actions** as the
+source. The **Publish Demo** workflow rebuilds and deploys on pushes to
+`main`, or when run manually. It takes the public URL from Pages settings.
+Forks should update the demo links in this README to their own Pages URL.
 
 ## License
 

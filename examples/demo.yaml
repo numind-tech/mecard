@@ -1,0 +1,36 @@
+# Fictional details for the public demo. Replace them with your own.
+name: Alex Morgan
+organization: Example Studio
+email: alex@example.com
+phone: +1 202 555 0142
+website: https://example.com
+url: https://numind-tech.github.io/mecard/card/
+lang: en
+
+translations:
+  en:
+    title: Product designer
+  fr:
+    title: Designer produit
+
+links:
+  - label: Studio
+    url: https://example.com
+    icon: globe
+  - label: Portfolio
+    url: https://example.com/#portfolio
+    icon: file
+
+theme:
+  dark: "#1c514e"
+  light: "#82c8b8"
+  accent: "#397f78"
+  pop: "#c27752"
+  page: "#f3f6f4"
+  text: "#243e3a"
+
+options:
+  paper: true
+  qrContact: true
+  qrToggle: true
+  pwa: true

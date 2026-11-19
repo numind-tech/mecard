@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Try mecard: a multilingual digital business card with light and dark themes, portrait and landscape layouts, and contact sharing.">
+  <title>mecard — live demo</title>
+  <link rel="icon" href="card/favicon.png" type="image/png">
+  <link rel="stylesheet" href="gallery.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">mecard / live demo</p>
+      <h1>One card.<br>Every way to share it.</h1>
+      <p class="intro">Light or dark. Portrait or landscape. English or French.
+        The same card, ready for your screen.</p>
+      <nav aria-label="Demo links">
+        <a class="primary" href="card/">Try the card <span aria-hidden="true">↗</span></a>
+        <a href="https://github.com/numind-tech/mecard/blob/main/examples/demo.yaml">View the YAML</a>
+        <a href="https://github.com/numind-tech/mecard">GitHub</a>
+      </nav>
+      <p class="hint">Use the card’s controls to change language, theme and QR mode.
+        The layout toggle appears when the screen has enough room.</p>
+    </header>
+
+    <section aria-labelledby="previews">
+      <div class="section-heading">
+        <h2 id="previews">A few different views</h2>
+        <p>Real captures of the live card.</p>
+      </div>
+      <div class="gallery">
+        <figure>
+          <a href="card/"><img src="previews/portrait-light.png" alt="Alex Morgan’s fictional card in the light portrait layout, in English." width="520" height="740"></a>
+          <figcaption><strong>Portrait</strong><span>Light · English · Contact QR</span></figcaption>
+        </figure>
+        <figure>
+          <a href="card/"><img src="previews/portrait-dark.png" alt="The same card in the dark portrait layout, in French." width="520" height="740"></a>
+          <figcaption><strong>Portrait</strong><span>Dark · French · Contact QR</span></figcaption>
+        </figure>
+        <figure class="wide">
+          <a href="card/"><img src="previews/landscape-light.png" alt="The card in the light landscape layout, with a QR linking to the card." width="940" height="430" loading="lazy"></a>
+          <figcaption><strong>Landscape</strong><span>Light · English · Link QR</span></figcaption>
+        </figure>
+        <figure class="wide">
+          <a href="card/"><img src="previews/landscape-dark.png" alt="The card in the dark landscape layout, in French, with a QR linking to the card." width="940" height="430" loading="lazy"></a>
+          <figcaption><strong>Landscape</strong><span>Dark · French · Link QR</span></figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <aside>
+      <h2>Keep it on your phone</h2>
+      <p>Open the card, then use your browser’s “Add to Home Screen” or
+        “Install” menu. This demo includes PWA support, so it can reopen
+        offline after the first load.</p>
+      <p class="hint">All contact details in this demo are fictional.</p>
+    </aside>
+    <footer>
+      Based on <a href="https://github.com/mgrau/mecard">Matt Grau’s original mecard</a>,
+      extended with more ways to present and share a card.
+      Thank you, Matt, for creating and sharing it.
+    </footer>
+  </main>
+</body>
+</html>
