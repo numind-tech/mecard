@@ -129,24 +129,64 @@ tag or image digest in CI.
 
 ## Publishing
 
-Serve the complete generated directory on a static host, such as GitHub
-Pages, Cloudflare Pages or your own web server. Set the card or site URL
-to its public address. Domain routing and HTTPS are configured at the host.
+Serve the complete generated directory on any static host. Set the card
+or site URL to its public address so sharing and QR codes point there.
 
-Site builds produce `_redirects` for an optional root redirect and
-`_headers` for indexing preferences. Cloudflare Pages understands these
-files directly; configure equivalent rules when using another host.
+| Host | Example | Builds from |
+|---|---|---|
+| GitHub Pages | [GitHub Actions](examples/github-pages.yml) | Generator checkout and `card.yaml` |
+| GitLab Pages | [GitLab CI](examples/gitlab-pages.yml) | Generator checkout and `card.yaml` |
+| Cloudflare Pages | [GitLab CI](examples/gitlab-ci.yml) | Separate data repository and the generator image |
 
-The [GitLab CI example](examples/gitlab-ci.yml) is an optional integration:
-one job generates the site and saves it as an artifact; another publishes
-that artifact to Cloudflare. The [setup guide](docs/container-ci.md)
-explains image selection and protected deployment variables. The same
-generator commands can be used with other CI and hosting services.
+### GitHub Pages
 
-The public repository's workflows test the generator, publish its image,
-and deploy the fictional demo to GitHub Pages. Personal card data and
-site deployment credentials belong to the
-data repository and its deployment environment.
+1. Fork this repository on GitHub. Copy `examples/demo.yaml` to
+   `card.yaml` at the repository root and replace the example details.
+2. Copy [examples/github-pages.yml](examples/github-pages.yml) to
+   `.github/workflows/pages.yml`, replacing the demo workflow in your fork.
+   If your default branch is not `main`, update the workflow's branch filter.
+3. In **Settings → Pages → Build and deployment → Source**, choose
+   **GitHub Actions**. Enable Actions in your fork if prompted.
+4. Commit and push `card.yaml`, its local assets and the workflow.
+   **Publish Card** builds and publishes the card on each push to `main`;
+   it can also be run manually from **Actions**.
+
+Open the URL shown in **Settings → Pages**, usually
+`https://<owner>.github.io/<repository>/`. The workflow uses that URL
+automatically, including the repository path or a configured custom domain.
+It uses GitHub's built-in token; no personal access token is needed.
+See [GitHub's Pages setup](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site).
+
+To keep card data in a separate repository, use the
+[container variant](docs/container-ci.md#github-actions-and-github-pages).
+
+### GitLab Pages
+
+1. Import or push a copy of this repository to GitLab.
+2. Copy `examples/demo.yaml` to `card.yaml` and customize it. Copy
+   [examples/gitlab-pages.yml](examples/gitlab-pages.yml) to `.gitlab-ci.yml`.
+3. Commit and push these files and any local assets to the default branch.
+   The job builds and publishes the card using GitLab Pages.
+4. Open **Deploy → Pages** to find the published URL.
+
+The example needs GitLab 17.10 or later and a runner that supports container
+jobs. It uses `CI_PAGES_URL` for sharing and QR codes. For a custom domain,
+set the `CARD_URL` CI/CD variable to its full HTTPS URL and rerun the pipeline.
+No deployment token is needed. See [GitLab's Pages setup](https://docs.gitlab.com/user/project/pages/getting_started/pages_from_scratch/).
+
+### Cloudflare Pages and other hosts
+
+The [GitLab → Cloudflare example](examples/gitlab-ci.yml) builds a
+multi-card site from a separate data repository using the container image.
+Follow the [setup guide](docs/container-ci.md#gitlab-ci-and-cloudflare-pages)
+to configure the image and deployment variables.
+
+For another host, upload the generated output directory. Site builds
+include `_redirects` and `_headers` for hosts that support them. GitHub
+Pages ignores these files; the cards' `noindex` HTML metadata still applies.
+The single-card examples above support project paths such as `/repository/`.
+Multi-card builds currently require `site.url` to be a domain root, so use
+a custom domain or a user/organization Pages site for those.
 
 ## Configuration
 

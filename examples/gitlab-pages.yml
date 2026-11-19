@@ -1,0 +1,17 @@
+# Copy to .gitlab-ci.yml in a checkout of the generator (GitLab 17.10+).
+# Create card.yaml from examples/demo.yaml and customize it first.
+publish_card:
+  image: node:24-bookworm-slim
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+  resource_group: pages
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends fonts-dejavu-core
+    - npm ci --omit=dev
+  script:
+    - |
+      card_url="${CARD_URL:-$CI_PAGES_URL}"
+      npm run build -- --config card.yaml --out dist/card \
+        --url "${card_url%/}/" --strict
+  pages:
+    publish: dist/card

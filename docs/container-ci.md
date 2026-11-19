@@ -1,9 +1,8 @@
-# Container builds and private GitLab data
+# Container builds and CI
 
-The public repository owns the generator and its container image. A separate
-private GitLab repository owns the card YAML, shared theme, logos, portraits or
-photo URLs, and its publication pipeline. Updating a card only runs the private
-pipeline; it does not rebuild the generator image.
+Use the generator image locally or in CI with a checkout containing card YAML
+and assets. That checkout can live in a separate repository on any Git host.
+Updating a card does not require rebuilding the generator image.
 
 The image provides Node 24, the locked production dependencies, fonts for
 initials, a normal shell, and two commands on `PATH`:
@@ -14,11 +13,10 @@ initials, a normal shell, and two commands on `PATH`:
 The working directory can be the data checkout. Relative photo and logo paths
 remain relative to the YAML file that declares them, including shared defaults.
 The generator lives at `/opt/mecard`, independently of the checkout location.
-No card data, credentials or Cloudflare CLI is baked into the image.
 
 ## Build and try locally
 
-In the public generator checkout:
+In the generator checkout:
 
 ```sh
 docker build -t mecard:local .
@@ -29,7 +27,7 @@ The smoke test creates synthetic bilingual cards and a local theme in a
 temporary directory. It runs the image without network access, mounts input
 read-only, checks both CLI commands, and verifies generated files on the host.
 
-In the private data checkout, with `site.yaml` already configured:
+In the data checkout, with `site.yaml` already configured:
 
 ```sh
 mkdir -p dist
@@ -41,7 +39,7 @@ docker run --rm --user "$(id -u):$(id -g)" \
 This writes `dist/site/` on the host, owned by your user. Mount the **parent**
 output directory (`/output`), rather than `/output/site`: the site builder
 replaces the site atomically and keeps an ownership marker alongside it.
-Add `dist/` to the private repository's `.gitignore`.
+Add `dist/` to the data repository's `.gitignore`.
 
 For a shell with the same mounts:
 
@@ -74,20 +72,62 @@ job. It produces a full-commit tag (`sha-<40-character-commit>`), a branch tag
 (`main`), and a version tag (`1.0.0`) for a matching release tag.
 
 After the first publication, open the package's GitHub settings and change its
-visibility to **Public** if GitLab should pull it anonymously. A public source
-repository does not automatically make a newly created GHCR package public.
+visibility to **Public** to allow anonymous pulls from other repositories.
+A public source repository does not automatically make a newly created GHCR package public.
 An organization may restrict who can change package visibility.
 
-For the private pipeline, select a release or commit image; use its
+For CI, select a release or commit image; use its
 `ghcr.io/<owner>/<repository>@sha256:<digest>` reference when exact image
 reproducibility matters. The `main` tag is convenient for trials but moves with
 future generator changes. The Node 24 base image receives patch updates on
 rebuild; `--build-arg NODE_IMAGE=node:24-bookworm-slim@sha256:<digest>` can pin it
 as well.
 
-## Generate and deploy from GitLab CI
+## GitHub Actions and GitHub Pages
 
-1. Create a **private** GitLab repository containing `site.yaml`, the YAML files
+For a separate data repository, copy the
+[GitHub Pages workflow](../examples/github-pages.yml) to
+`.github/workflows/pages.yml`. Keep its checkout,
+Pages configuration, artifact upload and deploy steps. Replace the Node setup,
+`npm ci` and generation steps with:
+
+```yaml
+- name: Generate the card
+  env:
+    MECARD_IMAGE: ${{ vars.MECARD_IMAGE }}
+    CARD_URL: ${{ steps.pages.outputs.base_url }}
+  run: |
+    mkdir -p dist
+    docker run --rm --user "$(id -u):$(id -g)" \
+      -v "$PWD:/data:ro" -v "$PWD/dist:/output" -w /data \
+      "$MECARD_IMAGE" mecard --config card.yaml --out /output/card \
+      --url "${CARD_URL%/}/" --strict
+```
+
+In **Settings → Secrets and variables → Actions → Variables**, add
+`MECARD_IMAGE` with a public image tag or digest. Commit `card.yaml` and its
+assets, and select **GitHub Actions** in **Settings → Pages**. The workflow
+publishes `dist/card/` using GitHub's built-in token. Private repositories need
+a [GitHub plan that supports Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
+
+For a multi-card site, use `mecard-site --config site.yaml --out /output/site
+--strict` instead and change the upload path to `dist/site`. Set `site.url` to
+the public domain root; project subpaths are not supported by `mecard-site`.
+Supply an `index.html` in the output if you also want a home page: the site
+builder generates the individual card directories and a 404 page.
+
+## GitLab CI and GitLab Pages
+
+For a separate data repository, use the
+[GitLab Pages example](../examples/gitlab-pages.yml) with
+`image: "$MECARD_IMAGE"`, remove `before_script`, and replace
+`npm run build --` with `mecard` in the script. Add `MECARD_IMAGE` as a
+CI/CD variable, and commit `card.yaml` and its assets. The runner uses the
+image's shell to build the card; GitLab Pages publishes `dist/card/`.
+
+## GitLab CI and Cloudflare Pages
+
+1. Create a GitLab data repository containing `site.yaml`, the YAML files
    it references, and their theme/assets. The generator repository is not needed
    in this checkout.
 2. Copy [`examples/gitlab-ci.yml`](../examples/gitlab-ci.yml) into its root as
