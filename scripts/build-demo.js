@@ -24,6 +24,11 @@ const types = { ".html": "text/html", ".css": "text/css", ".js": "text/javascrip
 const server = createServer(async (req, res) => {
   try {
     const path = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+    // Match static hosts that redirect index.html to its directory URL.
+    if (path.endsWith("/index.html")) {
+      res.writeHead(308, { Location: path.slice(0, -"index.html".length) }).end();
+      return;
+    }
     const file = resolve(out, `.${path}${path.endsWith("/") ? "index.html" : ""}`);
     if (!file.startsWith(out + sep)) throw new Error("Outside the demo");
     const body = await readFile(file);

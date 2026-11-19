@@ -723,7 +723,14 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
   if (req.mode === 'navigate') {
-    e.respondWith(fetch(req).catch(() => caches.open(CACHE).then((c) => c.match('index.html'))));
+    e.respondWith(fetch(req).catch(async () => {
+      const cache = await caches.open(CACHE);
+      const page = await cache.match('index.html');
+      // Hosts may redirect index.html to ./; navigations reject that flag.
+      return page?.redirected ? new Response(page.body, {
+        status: page.status, statusText: page.statusText, headers: page.headers,
+      }) : page;
+    }));
     return;
   }
   e.respondWith(caches.open(CACHE).then((c) => c.match(req)).then((hit) => hit || fetch(req)));

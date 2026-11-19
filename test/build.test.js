@@ -387,6 +387,7 @@ function worker(source, scope, store) {
   let online = true;
   const key = (request) => new URL(typeof request === "string" ? request : request.url, scope).href;
   runInNewContext(source, {
+    Response,
     self: {
       registration: { scope },
       addEventListener: (name, handler) => { events[name] = handler; },
@@ -401,7 +402,10 @@ function worker(source, scope, store) {
         const cache = store.get(name);
         return {
           addAll: async (assets) => assets.forEach((asset) => cache.set(key(asset), `${scope}:${asset}`)),
-          match: async (request) => cache.get(key(request)),
+          match: async (request) => {
+            const hit = cache.get(key(request));
+            return hit instanceof Response ? hit.clone() : hit;
+          },
         };
       },
       match: () => { throw new Error("must not search other applications' caches"); },
@@ -449,6 +453,36 @@ test("service workers preserve caches of other applications and other cards", as
   assert.equal(await first.dispatch("fetch", { method: "GET", mode: "navigate", url: a }), `${a}:index.html`);
   const faviconHref = html.match(/<link rel="icon" href="([^"]+)"/)[1];
   assert.equal(await first.dispatch("fetch", { method: "GET", mode: "no-cors", url: new URL(faviconHref, a).href }), `${a}:${faviconHref}`);
+});
+
+test("offline navigation accepts a cached page fetched through a redirect", async (t) => {
+  const { code, stderr, out, html } = await build(BASIC);
+  assert.equal(code, 0, stderr);
+  const server = createServer((req, res) => {
+    if (req.url === "/card/index.html") {
+      res.writeHead(308, { Location: "/card/" }).end();
+    } else {
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" }).end(html);
+    }
+  });
+  await new Promise((done) => server.listen(0, "127.0.0.1", done));
+  t.after(() => server.close());
+  const scope = `http://127.0.0.1:${server.address().port}/card/`;
+  const cachedPage = await fetch(`${scope}index.html`);
+  assert.equal(cachedPage.redirected, true, "reproduce static hosts' canonical URL redirects");
+
+  const store = new Map();
+  const app = worker(readFileSync(join(out, "sw.js"), "utf8"), scope, store);
+  await app.dispatch("install");
+  [...store.values()][0].set(`${scope}index.html`, cachedPage);
+  app.offline();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const page = await app.dispatch("fetch", { method: "GET", mode: "navigate", redirect: "manual", url: scope });
+    assert.equal(page.redirected, false, "browsers reject redirected responses for offline navigation");
+    assert.equal(page.status, 200);
+    assert.equal(page.headers.get("Content-Type"), "text/html; charset=utf-8");
+    assert.equal(await page.text(), html);
+  }
 });
 
 test("turning PWA off clears the old PWA files", async () => {
